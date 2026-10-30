@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Local price observation snapshots (not source code)
+/data/
+
+# dbt generated output and local configuration
+pipelines/dbt/target/
+pipelines/dbt/logs/
+pipelines/dbt/dbt_packages/
+pipelines/dbt/profiles.yml
+
+# Airflow local state
+airflow.cfg
+.airflow/
+pipelines/orchestration/airflow/logs/
+
+# Local secrets and private keys
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+
+# OS/editor
+.DS_Store

@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: scaffold_example
+    description: "Zero-row starter model; replace before using in a real build."
+    columns:
+      - name: scaffold_placeholder
+        description: "Always NULL in this starter model."
