@@ -162,6 +162,98 @@ Three-second minimum pauses apply between pages/categories; images, media,
 and fonts are blocked. No accounts, carts, purchases, login bypass, private
 API scraping, Snowflake connection, or automated publishing is involved.
 
+## Hipermaxi Farmacia Calacoto
+
+`scrape_hipermaxi.py` completed a full live collection of all 14 main categories:
+4,366 unique products (318 discounted) across 96 scroll batches. All categories
+reached explicit terminal markers and CSV/JSONL/Parquet records matched.
+Initial pilots encountered Radware validation and a fixed readiness bug.
+Use approved access and do not bypass challenges. Review
+[Hipermaxi terms](https://informacion.hipermaxi.com/terminos-y-condiciones-generales/)
+before collecting or republishing data.
+
+Once access is approved, the CLI supports:
+
+```bash
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_hipermaxi --category farmacia-genericos
+```
+
+Omitting `--category` selects all discovered main-menu categories (14 observed).
+The collector uses an already-loaded main category directly. If navigation
+lands on a subcategory, it selects “Todo” to return to the main category.
+It uses one reused browser/page (headless by default), pauses at least three seconds between
+navigations and scroll batches, and blocks image/media/font downloads.
+The bottom status sentinel triggers infinite scrolling; completion requires
+an explicit terminal/empty-products message. Timeouts, missing sentinels,
+HTTP errors, unexpected redirects and invalid records fail the snapshot, rather
+than treating incomplete output as success. Repeated product IDs are retained
+with warnings. Main categories are not separately expanded into nested crawls.
+
+The shared writer saves `scrape_hipermaxi_<UTC timestamp>.csv`, `.jsonl`, and
+`.parquet` plus `summary.json` in a unique ignored `data/hipermaxi/` directory.
+The summary records requested/completed categories, active category/batch,
+observation counts and failure status; partial output remains on failure.
+Rows include La Paz/Farmacia Calacoto context, category name/URL, product
+ID/URL/name, batch, UTC observation time, raw prices, discount labels,
+calculated discount percentage and image URL metadata. Product IDs are not
+verified barcodes; missing availability labels mean unknown stock.
+Prices use exact BOB decimal strings with the same regular/current/discount
+semantics as the other collectors. Cross-category observations are preserved.
+No accounts, carts, private API collection or Snowflake access is used.
+The site's usable robots rules are checked with the existing longest-match
+policy implementation; bot validation is a separate access restriction.
+
+Hipermaxi browser sessions use Playwright Chromium's native User-Agent, including
+its actual platform/version, rather than a custom-only identifier or a copied
+Chrome/VS Code version. Headless mode retains its native headless identifier.
+The existing robots policy still checks rules for the collector identity
+`BoliviaPharmaPriceEngine/0.1`. Other retailers' identifiers are unchanged.
+This compatibility change does not guarantee acceptance by bot validation.
+
+Each navigation, “Todo” selection and scroll batch waits for `--delay`
+(default/minimum three seconds) plus a random 0-2 seconds. With defaults,
+pauses are 3-5 seconds. This is operation-level pacing, not a delay on every
+script, image or background request. The summary records the minimum and extra
+delay range. It does not disguise the collector or guarantee validation success.
+The collector waits up to 60 seconds for the category heading and products or
+an explicit empty/end message at the main category URL; a hidden “Todo” link
+does not block an already-loaded main category. On a subcategory URL, it instead
+waits for a visible “Todo” link targeting the requested main category.
+After selection, it waits up to 60 seconds for products or an explicit empty/end
+message. Missing content still fails the run rather than producing empty success.
+
+### Optional manual validation
+
+For approved collection, `--interactive` launches **visible Chromium from the
+start**. It allows navigation to the exact HTTPS host `validate.perfdrive.com`,
+pauses collection, brings the window forward and logs instructions for you
+to interact manually. Challenge images/fonts/media are allowed while it is
+displayed; catalog resource blocking remains unchanged. No challenge clicks,
+solvers, stealth headers, session import/export or automatic validation are used.
+The HTTPS `newassets.hcaptcha.com` embedded frame is allowed only while the
+interactive Radware page is displayed; top-level navigation to it stays blocked.
+
+```bash
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_hipermaxi --interactive --validation-timeout 300 --category farmacia-genericos
+```
+
+The timeout is a finite positive number of seconds (default 300 per challenge).
+No terminal input is needed: the collector waits for the browser to leave the
+validation host, checks the Calacoto URL and robots rules, then resumes in the
+same in-memory session. Unknown destinations, timeout or closing the window
+fail the snapshot and close the browser. The summary records interactive mode
+and its timeout. HTTP errors on catalog pages still stop collection.
+If validation interrupts a DOM operation, it is retried once; writes and
+categories are not blindly replayed. A changed category or changed previously
+collected product sequence stops the run to avoid skipping products after a
+reload. Repeated validation during the retry stops the run.
+
+Without `--interactive`, validation remains blocked and no window is opened.
+Manual validation does not establish collection permission, guarantee access,
+or prove future live coverage. Offline browser fixtures test the manual-return
+workflow; one live pilot also returned from validation before a separate
+category-readiness failure. The later full collection completed successfully.
+
 ## Placeholder
 
 `ingest_template.py` is intentionally unimplemented. Use it only as a boundary

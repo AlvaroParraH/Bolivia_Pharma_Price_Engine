@@ -92,6 +92,30 @@ when the site's robots endpoint is missing or returns HTML. See the
 [Bronze collection guide](pipelines/ingestion/bronze/README.md) for policy
 uncertainty, category filtering, price semantics, and location limitations.
 
+## Collect Hipermaxi prices
+
+A collector is available in
+[`scrape_hipermaxi.py`](pipelines/ingestion/bronze/scrape_hipermaxi.py).
+It targets La Paz / Farmacia Calacoto, main categories and infinite scrolling,
+with matching timestamped CSV/JSONL/Parquet output. The first full collection
+completed all 14 main categories with 4,366 unique products, including 318 with
+discounts, across 96 scroll batches. All three output formats were verified.
+Initial pilots encountered validation and a subsequently fixed category-readiness
+bug; future access is not guaranteed. No automatic validation bypass is used. See the
+[Bronze guide](pipelines/ingestion/bronze/README.md) for details.
+
+For approved collection with manual validation, opt into a visible browser:
+
+```bash
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_hipermaxi --interactive
+```
+
+If redirected to Radware, collection pauses for up to five minutes for you to
+interact in that window. It resumes only after returning to Calacoto in the
+same session. No challenge is solved automatically. Headless mode still stops
+on validation. This workflow does not guarantee access or grant permission.
+Add `--category farmacia-genericos` to limit collection to that category.
+
 ## Before implementation
 
 Confirm existing project conventions, data classification, source access,

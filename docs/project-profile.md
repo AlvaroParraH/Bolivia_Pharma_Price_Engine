@@ -48,6 +48,17 @@ observation dates and source provenance; do not bypass access controls.
 
 ## Decisions and links
 
+- Hipermaxi collector targets La Paz / Farmacia Calacoto only. Fourteen main
+  categories and infinite scrolling were observed in the public browser.
+  Initial pilots encountered Radware validation and a fixed readiness bug.
+  The first full live collection completed all 14 categories: 4,366 unique
+  products, 318 discounted products and 96 scroll batches. CSV/JSONL/Parquet
+  records and category completion markers were verified; future access and
+  an atomic catalog snapshot are not guaranteed.
+  An opt-in `--interactive` mode opens visible Chromium and waits for manual
+  validation in that same session with a bounded timeout. Headless mode
+  remains fail-fast; no automatic challenge solving or bypass is implemented.
+
 - Add Farmacias Chavez collection of paginated main-menu categories, including
   promotions, using a single Playwright browser/page. Store category-filterable
   timestamped CSV/JSONL/Parquet snapshots without selecting a delivery location.

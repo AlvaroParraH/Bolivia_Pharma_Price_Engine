@@ -31,3 +31,23 @@ Chavez coverage includes variable-decimal BOB prices, regular/discount prices,
 full versus truncated names, offline Chromium DOM extraction, pagination,
 duplicate-page detection, count warnings, explicit missing-robots approval,
 failure manifests, and matching CSV/JSONL/Parquet records.
+
+Run all three retailer suites:
+
+```bash
+uv run --no-env-file --locked python -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+Hipermaxi tests cover dot-decimal prices, discounts, branch-restricted URLs,
+DOM extraction, infinite-scroll completion signals, missing-sentinel failures,
+bot-validation stops, robots rule precedence, failed manifests and equivalent
+output formats. These are offline tests, not proof of live access or coverage.
+Interactive-mode tests cover visible-launch configuration, manual timeout and
+window-close failures, allowed validation host, return URL/robots checks,
+interrupted DOM operations and same-session return using local browser fixtures.
+They do not interact with or solve the real Radware challenge.
+Pacing tests verify the three-second floor plus 0-2 seconds random extra delay.
+Local delayed-content fixtures verify category readiness before selection and
+the 60-second readiness timeout configuration.
+Regression fixtures cover loaded main categories with hidden “Todo” links,
+explicit empty categories and subcategory-to-main navigation.
