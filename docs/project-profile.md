@@ -48,6 +48,12 @@ observation dates and source provenance; do not bypass access controls.
 
 ## Decisions and links
 
+- Add Farmacias Chavez collection of paginated main-menu categories, including
+  promotions, using a single Playwright browser/page. Store category-filterable
+  timestamped CSV/JSONL/Parquet snapshots without selecting a delivery location.
+  The robots endpoint returns HTML rather than usable rules; proceeding with
+  a conservative public-page crawl was explicitly approved and is recorded as
+  a warning. Location-specific catalog/stock coverage remains unverified.
 - Use Playwright with Chromium for the initial Farmacorp browser automation.
   The initial collector processes every page in Ofertas and stores timestamped
   local JSONL/CSV/Parquet snapshots with regular and discounted prices. Future

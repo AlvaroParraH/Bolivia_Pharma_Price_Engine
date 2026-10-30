@@ -107,6 +107,61 @@ transactional pages, off-site redirects, and unexpected pagination are refused.
 HTTP errors, including 429, stop the run; there is no access-control bypass.
 Review the site's terms and robots policy again before expanding collection.
 
+## Farmacias Chavez collection
+
+`scrape_farmacias_chavez.py` uses one headless Chromium instance and one reused
+page to collect every paginated main-menu category, including promotional
+categories. Nested subcategories are not independently crawled. Repeat products
+across categories are retained with their category names for filtering.
+
+```bash
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacias_chavez --allow-missing-robots
+```
+
+For a bounded collection, specify exact menu labels:
+
+```bash
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacias_chavez --category "Ofertas Del Mes" --allow-missing-robots
+```
+
+The site currently returns an HTML app page for `robots.txt`, not usable
+crawling rules. `--allow-missing-robots` records explicit approval to proceed
+despite this uncertainty. Without that approval the collector stops. HTTP
+403/429/server errors are not treated as missing rules. Check the site's
+[terms](https://www.farmaciaschavez.com.bo/TermsAndConditions) before expanding
+or republishing data; public visibility is not a license to reuse protected
+content. This collector stores product/price facts, not descriptions or images.
+
+Each run saves a unique directory under `data/farmacias_chavez/` (ignored by
+Git), with matching `scrape_farmacias_chavez_<UTC timestamp>.csv`, `.jsonl`,
+and `.parquet` files plus `summary.json`. The summary records requested and
+completed categories, page counts, active page, observation count, warnings,
+and completion/failure status. CSV/JSONL flush per page; Parquet finalizes when
+the writer closes. Both retailers use the shared `snapshot.py` output writer.
+
+Price meanings match Farmacorp: `price` is the regular price, `discount_price`
+is the lower current price or null, and `current_price` is payable now.
+Exact decimal strings avoid float rounding. Raw prices, promotion labels,
+calculated discount percentages, product ID/URL, category/URL, image URL,
+and UTC observation times are retained. The ID is the retailer URL suffix,
+not a verified barcode. `name` comes from image alt text; `display_name`
+preserves the potentially truncated visible card title. Brand is not inferred
+when absent from the cards. Availability is unknown unless explicitly shown;
+absence of an unavailable label does not prove stock.
+
+The market context is the public site **without a delivery location selected**.
+The site advises selecting a location for the nearest store catalog, so this
+is not a branch-specific price/availability guarantee. Its terms state prices
+are in national currency, include tax, and may change without notice.
+
+Pagination uses the public next button, waits for both the URL and product
+cards to change, checks page numbers and terminal button state, and records
+changing totals/overlaps as warnings. Full repeated pages, required-field
+failures, or invalid navigation stop the run and mark partial output failed.
+Three-second minimum pauses apply between pages/categories; images, media,
+and fonts are blocked. No accounts, carts, purchases, login bypass, private
+API scraping, Snowflake connection, or automated publishing is involved.
+
 ## Placeholder
 
 `ingest_template.py` is intentionally unimplemented. Use it only as a boundary

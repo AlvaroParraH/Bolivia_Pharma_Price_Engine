@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
-import csv
 from datetime import datetime, timezone
 from decimal import Decimal
 import json
@@ -16,10 +15,9 @@ from typing import TypedDict
 from urllib.parse import parse_qs, urljoin, urlsplit
 from uuid import uuid4
 
-import pyarrow as pa
-import pyarrow.parquet as pq
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
+from pipelines.ingestion.bronze.snapshot import SnapshotWriter
 
 BASE_URL = "https://farmacorp.com"
 USER_AGENT = "BoliviaPharmaPriceEngine/0.1"
@@ -326,12 +324,8 @@ def run(
     directory = output / run_id
     directory.mkdir(parents=True, exist_ok=False)
     basename = f"scrape_farmacorp_{run_id.split('_')[0]}"
-    output_files = {
-        extension: f"{basename}.{extension}" for extension in ("csv", "jsonl", "parquet")
-    }
-    parquet_schema = pa.schema([
-        pa.field(name, pa.string()) for name in Observation.__annotations__
-    ])
+    snapshot = SnapshotWriter(directory, basename, list(Observation.__annotations__))
+    output_files = snapshot.files
     manifest: dict[str, object] = {
         "run_id": run_id, "started_at": started_at, "status": "running",
         "requested_categories": categories, "all_categories": all_categories,
@@ -352,25 +346,12 @@ def run(
     count = 0
     try:
         with (
-            (directory / output_files["jsonl"]).open("x", encoding="utf-8") as json_file,
-            (directory / output_files["csv"]).open("x", encoding="utf-8", newline="") as csv_file,
-            pq.ParquetWriter(
-                directory / output_files["parquet"], parquet_schema, compression="snappy",
-            ) as parquet_writer,
+            snapshot,
             sync_playwright() as playwright,
         ):
-            writer = csv.DictWriter(csv_file, fieldnames=list(Observation.__annotations__))
-            writer.writeheader()
-
             def write_rows(rows: list[Observation]) -> None:
                 nonlocal count
-                if rows:
-                    parquet_writer.write_table(pa.Table.from_pylist(rows, schema=parquet_schema))
-                for row in rows:
-                    json_file.write(json.dumps(row, ensure_ascii=False) + "\n")
-                    writer.writerow(row)
-                json_file.flush()
-                csv_file.flush()
+                snapshot.write([dict(row) for row in rows])
                 count += len(rows)
                 manifest["observations"] = count
                 if rows:

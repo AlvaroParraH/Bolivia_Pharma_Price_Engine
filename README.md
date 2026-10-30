@@ -80,6 +80,18 @@ uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmac
 Every row includes `category` and `category_url`. Existing Ofertas snapshots
 are preserved; nested subcategories are not separately crawled in this mode.
 
+## Collect Farmacias Chavez prices
+
+```bash
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacias_chavez --allow-missing-robots
+```
+
+Collects paginated main-menu categories into timestamped CSV/JSONL/Parquet
+snapshots under `data/farmacias_chavez/`. The explicit flag approves proceeding
+when the site's robots endpoint is missing or returns HTML. See the
+[Bronze collection guide](pipelines/ingestion/bronze/README.md) for policy
+uncertainty, category filtering, price semantics, and location limitations.
+
 ## Before implementation
 
 Confirm existing project conventions, data classification, source access,

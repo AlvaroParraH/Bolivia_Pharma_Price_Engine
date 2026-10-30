@@ -19,3 +19,15 @@ Output tests verify timestamped filenames and equivalent CSV/JSONL/Parquet
 records, including nullable prices, multiple page batches, empty output, and
 Parquet finalization on handled collection failure.
 Tests do not request the live Farmacorp site.
+
+Run both retailer suites, including the shared snapshot writer regression
+checks:
+
+```bash
+uv run --no-env-file --locked python -m unittest discover -s tests -p 'test_farma*.py' -v
+```
+
+Chavez coverage includes variable-decimal BOB prices, regular/discount prices,
+full versus truncated names, offline Chromium DOM extraction, pagination,
+duplicate-page detection, count warnings, explicit missing-robots approval,
+failure manifests, and matching CSV/JSONL/Parquet records.
