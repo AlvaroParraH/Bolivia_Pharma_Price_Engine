@@ -286,7 +286,7 @@ def run(output: Path, categories: list[str] | None, delay: float, allow_missing_
         with snapshot, sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
             try:
-                context = browser.new_context(user_agent=USER_AGENT, locale="es-BO", timezone_id="America/La_Paz")
+                context = browser.new_context(locale="es-BO", timezone_id="America/La_Paz")
                 context.set_default_timeout(30_000)
                 context.set_default_navigation_timeout(60_000)
                 context.route("**/*", lambda route: route.abort() if route.request.resource_type in

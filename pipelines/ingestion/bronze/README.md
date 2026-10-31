@@ -99,7 +99,9 @@ output is retained with **failed** status. Rerun to produce a new snapshot.
 A completed scrape is not an atomic site-wide snapshot: prices can change
 while it runs, so use per-page observation times.
 
-Requests identify as `BoliviaPharmaPriceEngine/0.1`. Collection is sequential,
+Requests use Chromium's native User-Agent, without a custom override.
+Robots policy checks retain the collector identity `BoliviaPharmaPriceEngine/0.1`.
+Collection is sequential,
 with a default three-second pause before each page (`--delay`, minimum two).
 Images, media, and fonts are not downloaded. The current robots policy is
 checked before collection and navigation; filtered/sorted collections,
@@ -203,11 +205,12 @@ No accounts, carts, private API collection or Snowflake access is used.
 The site's usable robots rules are checked with the existing longest-match
 policy implementation; bot validation is a separate access restriction.
 
-Hipermaxi browser sessions use Playwright Chromium's native User-Agent, including
+All three retailers' browser sessions use Playwright Chromium's native User-Agent, including
 its actual platform/version, rather than a custom-only identifier or a copied
 Chrome/VS Code version. Headless mode retains its native headless identifier.
 The existing robots policy still checks rules for the collector identity
-`BoliviaPharmaPriceEngine/0.1`. Other retailers' identifiers are unchanged.
+`BoliviaPharmaPriceEngine/0.1`; Farmacorp and Chavez also retain this identity for
+robots policy checks. Locale `es-BO` and timezone `America/La_Paz` are unchanged.
 This compatibility change does not guarantee acceptance by bot validation.
 
 Each navigation, “Todo” selection and scroll batch waits for `--delay`

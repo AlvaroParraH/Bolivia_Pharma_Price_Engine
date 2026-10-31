@@ -362,7 +362,7 @@ def run(
             browser = playwright.chromium.launch(headless=True)
             try:
                 context: BrowserContext = browser.new_context(
-                    user_agent=USER_AGENT, locale="es-BO", timezone_id="America/La_Paz",
+                    locale="es-BO", timezone_id="America/La_Paz",
                 )
                 context.set_default_timeout(30_000)
                 context.set_default_navigation_timeout(60_000)

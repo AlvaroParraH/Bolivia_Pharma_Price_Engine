@@ -338,6 +338,9 @@ class OutputTests(unittest.TestCase):
                 directory = farmacorp.run(
                     [farmacorp.BASE_URL + "/collections/ofertas"], False, Path(output), 0,
                 )
+                playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.assert_called_once_with(
+                    locale="es-BO", timezone_id="America/La_Paz",
+                )
                 summary = json.loads((directory / "summary.json").read_text())
                 self.assertEqual(
                     summary["status"], "completed_with_warnings" if warnings else "completed",

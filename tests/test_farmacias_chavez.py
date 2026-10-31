@@ -221,6 +221,9 @@ class SnapshotTests(unittest.TestCase):
         ) as playwright, patch.object(chavez, "check_robots", side_effect=RuntimeError("policy error")):
             with self.assertRaisesRegex(RuntimeError, "policy error"):
                 chavez.run(Path(output), None, 0, False)
+            playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.assert_called_once_with(
+                locale="es-BO", timezone_id="America/La_Paz",
+            )
             summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
             self.assertEqual(summary["status"], "failed")
             self.assertIn("policy error", summary["error"])
