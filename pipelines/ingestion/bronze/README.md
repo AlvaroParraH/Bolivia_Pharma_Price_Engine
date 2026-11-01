@@ -257,6 +257,68 @@ or prove future live coverage. Offline browser fixtures test the manual-return
 workflow; one live pilot also returned from validation before a separate
 category-readiness failure. The later full collection completed successfully.
 
+## Upload snapshots to Azure Blob Storage
+
+Upload an existing finalized run without scraping again:
+
+```bash
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.upload_snapshot \
+  data/farmacorp/<run_directory> --retailer farmacorp
+```
+
+Use `farmacias_chavez` or `hipermaxi` for the other retailers. The shared
+`upload_snapshot.py` uploader reads the explicitly selected local `.env`
+(`--env-file <path>` to override) using `python-dotenv`, without modifying the
+process environment or interpolating variables. Define
+`AZURE_STORAGE_CONNECTION_STRING` and `AZURE_STORAGE_CONTAINER` there.
+Never commit those credentials; rotate exposed keys. Tenant ID is not needed
+by the uploader. Snowflake's storage integration does not authenticate Python
+uploads; this uploader needs separate Azure write access.
+
+Only the Parquet file is uploaded, to
+`bronze/<retailer>/<current_UTC_upload_date_YYYYMMDD>/<original_filename>.parquet`.
+There is no run-ID folder and no uploaded summary. The date is the upload date,
+not the scrape date; the original filename keeps its scrape timestamp.
+The selected local run is removed by default after successful upload and
+verification; no cleanup flag is required. This deletes its CSV, JSONL, Parquet, and local summary,
+then removes the empty run directory; only Parquet is stored in Azure. The run
+directory must be named after its summary's `run_id` and contain exactly those
+four regular files. Unexpected files, subdirectories, or symlinks prevent cleanup
+and fail validation before upload. No recursive deletion is used.
+
+Upload/verification failures retain local files. A cleanup failure after upload
+is reported separately and can leave partially removed local files; inspect the
+run and existing blob before retrying. Scraping and uploading remain separate
+commands; this behavior does not change scraper output or trigger a live upload.
+Python callers can explicitly pass `delete_after_upload=False` to retain files.
+
+The local summary must be `completed` or `completed_with_warnings`, with a
+positive observation count matching the finalized, readable Parquet data.
+The uploader checks row provenance and logs a warning for warning-status runs.
+It uploads with overwrite disabled and verifies blob size, stored MD5, and
+SHA-256 metadata; Azure SDK transfer checksums validate transferred chunks.
+This is not a separate download-and-rehash verification.
+Missing/malformed snapshots, failed runs, collisions, and upload/verification
+errors fail explicitly. Azure exception details are withheld from CLI output
+to avoid leaking credential-bearing requests.
+
+The SDK retries transient requests, but an already-existing destination is
+never overwritten or silently treated as success. If a previous attempt
+uploaded before failing verification, inspect that blob before retrying.
+Retries on a different UTC date produce a different destination: warehouse
+loading must still prevent duplicate ingestion using the record run identity.
+No container is created automatically and no Snowflake operation is performed.
+
+## Snowflake table definitions
+
+Local [Bronze table migrations](../../../infra/snowflake/migrations/bronze/tables/README.md)
+define one historical observation table per scraper, with typed decimal prices,
+offset-aware observation timestamps, source-specific fields, raw displayed
+prices, and load metadata. They have not been executed in Snowflake.
+The guide documents required conversions from the string-based snapshots,
+null handling, run-status checks, and replay safeguards. No loader or stages
+are implemented yet; scraper output behavior is unchanged.
+
 ## Placeholder
 
 `ingest_template.py` is intentionally unimplemented. Use it only as a boundary
