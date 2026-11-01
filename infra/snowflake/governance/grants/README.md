@@ -22,6 +22,10 @@ Nothing has been executed in Snowflake.
 
 ### Prerequisites and pending grants
 
+- Create the shared Bronze `PARQUET_SNAPSHOTS_FORMAT` before the stages.
+  Deployer grants include schema `CREATE FILE FORMAT`; ingestor grants include
+  `USAGE` on that exact format. Apply format usage only after the object exists.
+
 - All four account roles, the database, and the referenced objects must exist
   before their grants are executed. Silver and Gold are still planned schemas;
   create/confirm them separately before executing grants that reference them.

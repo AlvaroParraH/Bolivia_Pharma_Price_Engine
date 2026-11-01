@@ -11,6 +11,7 @@ Role definitions, access grants, and ownership transfers belong in
 ```text
 <schema>/
 ├── dynamic_tables/
+├── file_formats/
 ├── functions/
 ├── pipelines/
 ├── policies/

@@ -327,7 +327,9 @@ across upload-date folders in each retailer stage:
 They target `BOLIVIA_PHARMA_PRICE_ENGINE.BRONZE.SCRAPED_<RETAILER>_PRICES`.
 Create the approved tables and
 [external stages](../../../infra/snowflake/migrations/bronze/stages/README.md)
-first, then apply the ingestor grants. Execute only after separate live approval
+first, creating the shared Bronze `PARQUET_SNAPSHOTS_FORMAT` before the stages,
+then apply the ingestor grants. COPY inherits that named format from its stage;
+it has no inline format override. Execute only after separate live approval
 using `PHARMA_DEV_INGESTOR` and `COMPUTE_WH`, not a runtime `ACCOUNTADMIN` role.
 No automatic scheduling, Snowpipe, role assignment, or table creation is included.
 

@@ -9,6 +9,10 @@ Each references `AZURE_BOLIVIA_PHARMA_BRONZE` and the corresponding
 `bronze/<retailer>/` Azure prefix, including all upload-date subfolders.
 These stage definitions have not been executed.
 
+Create the [shared Parquet file format](../file_formats/README.md) before these
+stages. All three stages reference it by fully qualified name; the COPY scripts
+inherit the stage format rather than supplying inline parsing options.
+
 Before deployment, confirm the account, database, Bronze schema, integration,
 and Azure consent/RBAC. The creating role needs parent `USAGE`, schema
 `CREATE STAGE`, and integration `USAGE`. Use the approved deployer role after
