@@ -16,7 +16,7 @@ Nothing has been executed in Snowflake.
 | Script | Access |
 |---|---|
 | [pharma_dev_deployer.sql](pharma_dev_deployer.sql) | Database/schema usage, schema creation, Bronze table/stage creation, Silver/Gold table/view creation, and Azure integration usage |
-| [pharma_dev_ingestor.sql](pharma_dev_ingestor.sql) | Warehouse and Bronze parent usage; insert/select on the three scraping tables |
+| [pharma_dev_ingestor.sql](pharma_dev_ingestor.sql) | Warehouse and Bronze parent usage; usage on the three retailer stages; insert/select on the three scraping tables |
 | [pharma_dev_dbt.sql](pharma_dev_dbt.sql) | Warehouse and parent usage; select on the three Bronze tables; Silver/Gold table/view creation |
 | [pharma_dev_reader.sql](pharma_dev_reader.sql) | Warehouse, database, and Gold schema usage only; no data access yet |
 
@@ -28,8 +28,8 @@ Nothing has been executed in Snowflake.
   Database `CREATE SCHEMA` lets the deployer provision those schemas, but does
   not create them. Bronze table migrations and the
   `AZURE_BOLIVIA_PHARMA_BRONZE` integration must also be deployed separately.
-- The Bronze external stage name was not supplied, so stage `USAGE` for the
-  ingestor remains pending. These grants alone do not enable file loading.
+- The three retailer external stages must exist before applying ingestor
+  stage grants. Their definitions are local SQL, not yet deployed.
   An external-stage consumer needs stage `USAGE`, not integration `USAGE`;
   the deployer needs integration `USAGE` to create the stage.
 - Gold reporting objects have not been selected. Add object-specific `SELECT`

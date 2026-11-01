@@ -218,12 +218,18 @@ Each navigation, “Todo” selection and scroll batch waits for `--delay`
 pauses are 3-5 seconds. This is operation-level pacing, not a delay on every
 script, image or background request. The summary records the minimum and extra
 delay range. It does not disguise the collector or guarantee validation success.
-The collector waits up to 60 seconds for the category heading and products or
+The collector waits up to 80 seconds for the category heading and products or
 an explicit empty/end message at the main category URL; a hidden “Todo” link
 does not block an already-loaded main category. On a subcategory URL, it instead
 waits for a visible “Todo” link targeting the requested main category.
-After selection, it waits up to 60 seconds for products or an explicit empty/end
-message. Missing content still fails the run rather than producing empty success.
+After selection, it waits up to 80 seconds for products or an explicit empty/end
+message. Category-opening timeouts trigger up to three retries after the initial
+attempt (four attempts total), reopening the category with the existing pacing.
+Each readiness wait has its own 80-second limit, not a single overall deadline.
+Retries happen before category rows are written; collected batches and writes
+are never replayed. HTTP errors, policy failures, and failed manual validation
+still stop the run without these retries. Missing content after all attempts
+fails the run rather than producing empty success.
 
 ### Optional manual validation
 
@@ -309,6 +315,49 @@ Retries on a different UTC date produce a different destination: warehouse
 loading must still prevent duplicate ingestion using the record run identity.
 No container is created automatically and no Snowflake operation is performed.
 
+## Load Parquet into Snowflake
+
+The following local, unexecuted SQL scripts load all matching Parquet snapshots
+across upload-date folders in each retailer stage:
+
+- [load_farmacorp.sql](load_farmacorp.sql)
+- [load_farmacias_chavez.sql](load_farmacias_chavez.sql)
+- [load_hipermaxi.sql](load_hipermaxi.sql)
+
+They target `BOLIVIA_PHARMA_PRICE_ENGINE.BRONZE.SCRAPED_<RETAILER>_PRICES`.
+Create the approved tables and
+[external stages](../../../infra/snowflake/migrations/bronze/stages/README.md)
+first, then apply the ingestor grants. Execute only after separate live approval
+using `PHARMA_DEV_INGESTOR` and `COMPUTE_WH`, not a runtime `ACCOUNTADMIN` role.
+No automatic scheduling, Snowpipe, role assignment, or table creation is included.
+
+Each script maps every scraper field by its case-sensitive Parquet key,
+explicitly casts prices to decimals and offset-bearing observation strings to
+`TIMESTAMP_TZ`, and preserves optional nulls and raw display text. Hipermaxi's
+batch becomes an integer. These casts assume the existing scraper contract:
+two-decimal prices/percentages, integer batches, and explicit UTC offsets.
+Snowflake numeric casts can round overprecision; these scripts are not a
+general validator for externally supplied files.
+
+`SOURCE_FILE` records `METADATA$FILENAME` and `SOURCE_ROW_NUMBER` records the
+one-based file row. `LOADED_AT` uses the table default. `ABORT_STATEMENT`
+rejects conversion/load errors rather than skipping rows or converting errors
+to nulls. Inspect every COPY result for errors and rows loaded; parser/linter
+checks alone do not prove Snowflake execution.
+
+Files remain in Azure (`PURGE = FALSE`). `FORCE = FALSE` uses Snowflake's
+table-specific file-load history to skip known loaded files; uncertain-history
+files are not automatically loaded. This is not permanent run-level deduplication:
+load history expires, table replacement loses history, and the same run
+reuploaded under a different date/path can be loaded again. Do not force reloads
+or rename/reupload runs as a retry strategy without an explicit replay decision.
+Legitimate repeated rows and cross-category observations remain intact.
+
+All matching files include previously uploaded pilot snapshots as well as full
+runs. The uploader validated their local summaries, but those summaries are not
+in Azure. Reviewing uploaded `scrape_status` metadata and the desired historical
+scope remains a deployment prerequisite. Do not infer atomic catalog coverage.
+
 ## Snowflake table definitions
 
 Local [Bronze table migrations](../../../infra/snowflake/migrations/bronze/tables/README.md)
@@ -316,8 +365,8 @@ define one historical observation table per scraper, with typed decimal prices,
 offset-aware observation timestamps, source-specific fields, raw displayed
 prices, and load metadata. They have not been executed in Snowflake.
 The guide documents required conversions from the string-based snapshots,
-null handling, run-status checks, and replay safeguards. No loader or stages
-are implemented yet; scraper output behavior is unchanged.
+null handling, run-status checks, and replay safeguards. Local stages and COPY scripts are now defined separately; they have not been
+executed. Scraper output behavior is unchanged.
 
 ## Placeholder
 

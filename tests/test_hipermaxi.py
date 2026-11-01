@@ -240,9 +240,39 @@ class BrowserTests(unittest.TestCase):
         page.get_by_role.assert_not_called()
         calls = page.wait_for_function.call_args_list
         self.assertEqual(calls[0].args[0], hipermaxi.WAIT_FOR_CATEGORY)
-        self.assertEqual(calls[0].kwargs, {"arg": page.url, "timeout": 60_000})
+        self.assertEqual(calls[0].kwargs, {"arg": page.url, "timeout": 80_000})
         self.assertEqual(calls[1].args[0], hipermaxi.WAIT_FOR_BATCH)
-        self.assertEqual(calls[1].kwargs, {"arg": 0, "timeout": 60_000})
+        self.assertEqual(calls[1].kwargs, {"arg": 0, "timeout": 80_000})
+
+    def test_category_readiness_succeeds_on_third_retry(self):
+        page = MagicMock()
+        page.url = hipermaxi.BRANCH_URL + "/categoria/farmacia-genericos"
+        page.wait_for_function.side_effect = [
+            PlaywrightTimeoutError("slow"), PlaywrightTimeoutError("slow"),
+            PlaywrightTimeoutError("slow"), None, None,
+        ]
+        with patch.object(hipermaxi, "navigate") as navigate, \
+                self.assertLogs(hipermaxi.LOGGER, level="WARNING") as logs:
+            hipermaxi.open_all_products(page, page.url, policy(), 3)
+        self.assertEqual(navigate.call_count, 4)
+        self.assertEqual(len(logs.output), 3)
+
+    def test_category_readiness_exhausts_three_retries(self):
+        page = MagicMock()
+        page.url = hipermaxi.BRANCH_URL + "/categoria/farmacia-genericos"
+        page.wait_for_function.side_effect = PlaywrightTimeoutError("slow")
+        with patch.object(hipermaxi, "navigate") as navigate, \
+                self.assertLogs(hipermaxi.LOGGER, level="WARNING"), \
+                self.assertRaises(PlaywrightTimeoutError):
+            hipermaxi.open_all_products(page, page.url, policy(), 3)
+        self.assertEqual(navigate.call_count, 4)
+
+    def test_category_http_error_is_not_retried(self):
+        page = MagicMock()
+        with patch.object(hipermaxi, "navigate", side_effect=RuntimeError("HTTP 429")) as navigate, \
+                self.assertRaisesRegex(RuntimeError, "HTTP 429"):
+            hipermaxi.open_all_products(page, "url", policy(), 3)
+        navigate.assert_called_once()
 
     def test_main_category_with_hidden_todo_and_products_is_ready(self):
         with sync_playwright() as playwright:

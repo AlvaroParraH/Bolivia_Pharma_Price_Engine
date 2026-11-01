@@ -2,3 +2,22 @@
 
 Place reviewed SQL changes for stages in the Bronze schema here. No migration
 runner or execution order is configured yet.
+
+[scraped_prices_stages.sql](scraped_prices_stages.sql) defines three external
+Parquet stages in `BOLIVIA_PHARMA_PRICE_ENGINE.BRONZE`, one per retailer.
+Each references `AZURE_BOLIVIA_PHARMA_BRONZE` and the corresponding
+`bronze/<retailer>/` Azure prefix, including all upload-date subfolders.
+These stage definitions have not been executed.
+
+Before deployment, confirm the account, database, Bronze schema, integration,
+and Azure consent/RBAC. The creating role needs parent `USAGE`, schema
+`CREATE STAGE`, and integration `USAGE`. Use the approved deployer role after
+its grants are applied. Plain `CREATE STAGE` fails on existing objects without
+replacing them. Statements commit independently; inspect partial deployment
+before retrying.
+
+Stage creation does not load or transform data. The separate
+[Bronze load scripts](../../../../../pipelines/ingestion/bronze/README.md#load-parquet-into-snowflake)
+perform typed `COPY INTO` loads. Apply the
+[ingestor grants](../../../governance/grants/pharma_dev_ingestor.sql) after
+stages and target tables exist. No grants or uploads run automatically.

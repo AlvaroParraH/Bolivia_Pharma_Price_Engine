@@ -70,7 +70,8 @@ WAIT_FOR_CATEGORY = """url => {
             link.textContent.trim() === 'Todo' && link.href === url &&
             link.getClientRects().length > 0);
 }"""
-CONTENT_TIMEOUT_MS = 60_000
+CONTENT_TIMEOUT_MS = 80_000
+CATEGORY_READINESS_RETRIES = 3
 
 
 def pause(delay: float) -> None:
@@ -257,6 +258,24 @@ def discover_categories(page: Page) -> list[dict[str, str]]:
 def open_all_products(
     page: Page, url: str, policy: RobotsPolicy, delay: float, validation_timeout: float = 0,
 ) -> None:
+    for attempt in range(CATEGORY_READINESS_RETRIES + 1):
+        try:
+            _open_all_products(page, url, policy, delay, validation_timeout)
+            return
+        except PlaywrightTimeoutError:
+            if attempt == CATEGORY_READINESS_RETRIES:
+                LOGGER.error("Category readiness timed out after %d attempts: %s", attempt + 1, url)
+                raise
+            wait_for_catalog(page, policy, validation_timeout)
+            LOGGER.warning(
+                "Category readiness timed out; retry %d/%d: %s",
+                attempt + 1, CATEGORY_READINESS_RETRIES, url,
+            )
+
+
+def _open_all_products(
+    page: Page, url: str, policy: RobotsPolicy, delay: float, validation_timeout: float,
+) -> None:
     navigate(page, url, policy, delay, validation_timeout)
     catalog_action(
         page, policy, validation_timeout,
@@ -266,10 +285,16 @@ def open_all_products(
     )
     if page.url != url:
         all_link = page.get_by_role("link", name="Todo", exact=True)
-        catalog_action(page, policy, validation_timeout, all_link.wait_for)
+        catalog_action(
+            page, policy, validation_timeout,
+            lambda: all_link.wait_for(timeout=CONTENT_TIMEOUT_MS),
+        )
         pause(delay)
         catalog_action(page, policy, validation_timeout, all_link.click)
-        catalog_action(page, policy, validation_timeout, lambda: page.wait_for_url(url))
+        catalog_action(
+            page, policy, validation_timeout,
+            lambda: page.wait_for_url(url, timeout=CONTENT_TIMEOUT_MS),
+        )
     catalog_action(
         page, policy, validation_timeout,
         lambda: page.wait_for_function(WAIT_FOR_BATCH, arg=0, timeout=CONTENT_TIMEOUT_MS),
