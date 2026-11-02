@@ -29,7 +29,7 @@ class SnapshotUploadTests(unittest.TestCase):
         (self.snapshot / "summary.json").write_text(json.dumps(self.summary), encoding="utf-8")
 
     @patch.object(upload_snapshot.BlobServiceClient, "from_connection_string")
-    def test_uploads_all_artifacts_under_retailer_and_run_id(self, create_service):
+    def test_uploads_artifacts_under_retailer_and_utc_date(self, create_service):
         service = MagicMock()
         container = service.get_container_client.return_value
         create_service.return_value = service
@@ -39,7 +39,7 @@ class SnapshotUploadTests(unittest.TestCase):
         )
 
         expected = [
-            f"farmacorp/{self.snapshot.name}/{filename}"
+            f"farmacorp/2026-11-02/{filename}"
             for filename in (
                 self.summary["output_files"]["csv"],
                 self.summary["output_files"]["jsonl"],
@@ -54,6 +54,18 @@ class SnapshotUploadTests(unittest.TestCase):
         )
         self.assertEqual(container.get_blob_client.call_args_list[-1].args[0].rsplit("/", 1)[-1], "summary.json")
         service.close.assert_called_once()
+
+    def test_date_prefix_comes_from_utc_run_id(self):
+        self.summary["run_id"] = "20261231T235959Z_abcdefgh"
+        (self.snapshot / "summary.json").write_text(json.dumps(self.summary), encoding="utf-8")
+        service = MagicMock()
+
+        with patch.object(upload_snapshot.BlobServiceClient, "from_connection_string", return_value=service):
+            uploaded = upload_snapshot.upload_snapshot(
+                self.snapshot, "farmacorp", "test-connection", "test-container",
+            )
+
+        self.assertTrue(all(path.startswith("farmacorp/2026-12-31/") for path in uploaded))
 
     @patch.object(upload_snapshot.BlobServiceClient, "from_connection_string")
     def test_completed_with_warnings_is_uploadable(self, create_service):
@@ -89,6 +101,16 @@ class SnapshotUploadTests(unittest.TestCase):
         (self.snapshot / self.summary["output_files"]["csv"]).unlink()
         with patch.object(upload_snapshot.BlobServiceClient, "from_connection_string") as create_service:
             with self.assertRaisesRegex(FileNotFoundError, "missing"):
+                upload_snapshot.upload_snapshot(
+                    self.snapshot, "farmacorp", "test-connection", "test-container",
+                )
+            create_service.assert_not_called()
+
+    def test_invalid_run_timestamp_is_rejected(self):
+        self.summary["run_id"] = "not-a-timestamp"
+        (self.snapshot / "summary.json").write_text(json.dumps(self.summary), encoding="utf-8")
+        with patch.object(upload_snapshot.BlobServiceClient, "from_connection_string") as create_service:
+            with self.assertRaisesRegex(ValueError, "UTC timestamp"):
                 upload_snapshot.upload_snapshot(
                     self.snapshot, "farmacorp", "test-connection", "test-container",
                 )

@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 from azure.storage.blob import BlobServiceClient, ContentSettings
@@ -52,6 +53,10 @@ def upload_snapshot(
     run_id = summary.get("run_id")
     if not isinstance(run_id, str) or not run_id or Path(run_id).name != run_id or run_id in {".", ".."}:
         raise ValueError("Snapshot summary has an invalid run_id")
+    try:
+        snapshot_date = datetime.strptime(run_id[:16], "%Y%m%dT%H%M%SZ").strftime("%Y-%m-%d")
+    except ValueError as error:
+        raise ValueError("Snapshot run_id must begin with a UTC timestamp in YYYYMMDDTHHMMSSZ format") from error
 
     output_files = summary.get("output_files")
     if not isinstance(output_files, dict):
@@ -75,7 +80,7 @@ def upload_snapshot(
     if not container_name:
         raise ValueError("AZURE_STORAGE_CONTAINER is required")
 
-    prefix = f"{retailer}/{run_id}"
+    prefix = f"{retailer}/{snapshot_date}"
     uploaded: list[str] = []
     service = BlobServiceClient.from_connection_string(connection_string)
     try:

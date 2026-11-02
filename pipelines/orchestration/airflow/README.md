@@ -56,10 +56,11 @@ The `scrape_pharmacy_prices` DAG has three independent tasks, limited to one
 running task and one active DAG run at a time. Each task collects all main
 categories for its retailer, then uploads the CSV, JSONL, Parquet, and summary
 to the configured Azure Blob Storage container. The blob layout is
-`<retailer>/<run_id>/<filename>`; the summary is uploaded last as the completion
-marker. Failed scraper runs are not uploaded. Upload errors fail the task while
-retaining its local snapshot. It is manual-only and starts paused. In the
-Airflow UI, enable it and trigger a run. Explicitly select
+`<retailer>/<date>/<filename>`, with `date` taken from the snapshot's UTC run
+timestamp and formatted `YYYY-MM-DD`; the summary is uploaded last as the
+completion marker. Failed scraper runs are not uploaded. Upload errors fail the
+task while retaining its local snapshot. It is manual-only and starts paused.
+In the Airflow UI, enable it and trigger a run. Explicitly select
 `allow_missing_chavez_robots` if you approve collection despite missing/HTML
 robots rules; otherwise the Chavez scraper stops if usable rules are absent.
 
