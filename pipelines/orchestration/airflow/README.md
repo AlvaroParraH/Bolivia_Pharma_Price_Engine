@@ -1,8 +1,89 @@
 # Airflow orchestration
 
+## Local Docker development
+
+Airflow **3.3.2** is pinned in [compose.yaml](compose.yaml), based on the
+current official stable release at setup time. PostgreSQL stores metadata;
+LocalExecutor runs tasks without requiring Redis or Celery workers. Separate
+API server, scheduler, DAG processor, and triggerer services use the same image.
+Allocate at least 4 GB of Docker memory (8 GB recommended).
+
+From the repository root:
+
+```bash
+docker compose --env-file /dev/null -f pipelines/orchestration/airflow/compose.yaml up -d --build --wait --wait-timeout 300
+docker compose --env-file /dev/null -f pipelines/orchestration/airflow/compose.yaml ps
+```
+
+Open http://localhost:8080 and sign in with `airflow` / `airflow`.
+These public development-only credentials and the local JWT secret are not
+suitable for production or shared hosting. The API server and browser desktop
+are published only on loopback; PostgreSQL is not exposed to the host.
+The init service migrates the metadata database and creates the local user.
+No project `.env` is loaded or mounted; no Azure/Snowflake credentials are
+provided. Do not copy the repository environment into the containers.
+
+The existing DAG directory is mounted read-only. DAGs start paused, examples
+are disabled, and the scaffold has no schedule and only an empty task.
+No scraping, upload, or Snowflake jobs run automatically. The custom image
+installs scraper dependencies from the root uv lock into an isolated environment,
+plus Chromium and a local browser desktop. Rebuild after source or lock changes.
+Airflow runtime dependencies stay isolated from the root uv environment.
+
+```bash
+# Diagnose services
+docker compose --env-file /dev/null -f pipelines/orchestration/airflow/compose.yaml logs --tail 100 airflow-scheduler airflow-dag-processor
+# Stop without deleting metadata or logs
+docker compose --env-file /dev/null -f pipelines/orchestration/airflow/compose.yaml down
+```
+
+Named volumes retain metadata and logs across restarts. Do not remove volumes
+unless intentionally resetting the development instance. This Compose project
+is a local development setup, not a production deployment.
+
 `dags/scaffold_pipeline.py` contains a single empty task. It performs no
 Snowflake or data operations. Confirm the Airflow runtime, provider versions,
 approved authentication, schedule/timezone, and release process before
 extending or deploying it.
 
 Do not put credentials or rendered connection profiles in this repository.
+
+## Run the three scrapers
+
+The `scrape_pharmacy_prices` DAG has three independent tasks, limited to one
+running task and one active DAG run at a time. It collects all main categories
+for Farmacorp, Farmacias Chavez, and Hipermaxi. It is manual-only and starts
+paused. In the Airflow UI, enable it and trigger a run. Explicitly select
+`allow_missing_chavez_robots` if you approve collection despite missing/HTML
+robots rules; otherwise the Chavez scraper stops if usable rules are absent.
+
+Before triggering, open http://localhost:6080/vnc.html and click **Connect**.
+Hipermaxi launches visible Chromium there. Watch its task logs and interact
+manually if site validation appears; each challenge has a 300-second timeout.
+No challenge solving, access bypass, or session reuse is automated. The browser
+desktop has no password and is bound to localhost; do not expose it or the
+internal Docker display port to untrusted networks.
+
+Scraper subprocess failures fail their tasks, retain partial files, and do not
+skip the other pharmacies. There are no automatic task retries to avoid replaying
+collections. Clearing/re-running a task creates a new snapshot, not a resume.
+Observe existing request pacing and site policy; no live collection is performed
+as part of deployment validation.
+
+CSV, JSONL, Parquet, and summaries persist in the `airflow-snapshots` named
+volume at `/opt/airflow/snapshots/<retailer>/<run_id>/`. To export them:
+
+```bash
+mkdir -p data/airflow-snapshots
+docker compose --env-file /dev/null -f pipelines/orchestration/airflow/compose.yaml cp airflow-scheduler:/opt/airflow/snapshots/. data/airflow-snapshots/
+```
+
+Snapshots survive `down` but not deliberate volume deletion. No automatic
+cleanup, Azure upload, or Snowflake load is configured.
+
+Offline container checks (no pharmacy requests):
+
+```bash
+docker compose --env-file /dev/null -f pipelines/orchestration/airflow/compose.yaml cp pipelines/orchestration/airflow/tests/test_scraper_dag.py airflow-scheduler:/tmp/test_scraper_dag.py
+docker compose --env-file /dev/null -f pipelines/orchestration/airflow/compose.yaml exec -T airflow-scheduler python /tmp/test_scraper_dag.py
+```

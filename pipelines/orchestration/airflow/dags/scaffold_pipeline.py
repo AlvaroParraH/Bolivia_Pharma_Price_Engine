@@ -1,8 +1,8 @@
 """Empty Airflow DAG starter for bolivia_pharma_price_engine; no Snowflake work is performed."""
 
 import pendulum
-from airflow import DAG
-from airflow.operators.empty import EmptyOperator
+from airflow.sdk import DAG
+from airflow.providers.standard.operators.empty import EmptyOperator
 
 
 with DAG(

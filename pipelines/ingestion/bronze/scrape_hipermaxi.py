@@ -324,7 +324,13 @@ def collect_category(
         if not sentinel.count():
             raise ValueError("Missing scroll sentinel and no explicit end-of-products marker")
         pause(delay)
-        catalog_action(page, policy, validation_timeout, sentinel.scroll_into_view_if_needed)
+        # Loading indicators can animate continuously, so do not wait for layout stability.
+        catalog_action(
+            page, policy, validation_timeout,
+            lambda: sentinel.evaluate(
+                "(element) => element.scrollIntoView({behavior: 'instant', block: 'end', inline: 'nearest'})",
+            ),
+        )
         catalog_action(
             page, policy, validation_timeout,
             lambda: page.wait_for_function(WAIT_FOR_BATCH, arg=processed),

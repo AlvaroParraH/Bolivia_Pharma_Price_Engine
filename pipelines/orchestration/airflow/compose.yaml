@@ -1,0 +1,142 @@
+name: bolivia-pharma-airflow
+
+x-airflow: &airflow
+  image: bolivia-pharma-airflow:3.3.2
+  build:
+    context: ../../..
+    dockerfile: pipelines/orchestration/airflow/Dockerfile
+  user: "${AIRFLOW_UID:-50000}:0"
+  environment: &airflow-environment
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__API_AUTH__JWT_SECRET: local-development-only-change-before-sharing
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    AIRFLOW__CORE__PARALLELISM: "4"
+    PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
+  volumes:
+    - ./dags:/opt/airflow/dags:ro
+    - airflow-logs:/opt/airflow/logs
+  depends_on:
+    postgres:
+      condition: service_healthy
+    airflow-init:
+      condition: service_completed_successfully
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  airflow-init:
+    <<: *airflow
+    command: version
+    environment:
+      <<: *airflow-environment
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: airflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  airflow-apiserver:
+    <<: *airflow
+    command: api-server
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
+  airflow-scheduler:
+    <<: *airflow
+    command: scheduler
+    shm_size: "2gb"
+    volumes:
+      - ./dags:/opt/airflow/dags:ro
+      - airflow-logs:/opt/airflow/logs
+      - airflow-snapshots:/opt/airflow/snapshots
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+      browser-desktop:
+        condition: service_healthy
+      snapshots-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
+  airflow-dag-processor:
+    <<: *airflow
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 30s
+
+  airflow-triggerer:
+    <<: *airflow
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 30s
+
+  snapshots-init:
+    image: bolivia-pharma-airflow:3.3.2
+    user: "0:0"
+    entrypoint: ["/bin/bash", "-euc"]
+    command:
+      - 'chown "${AIRFLOW_UID:-50000}:0" /snapshots && chmod 0770 /snapshots'
+    volumes:
+      - airflow-snapshots:/snapshots
+    restart: "no"
+
+  browser-desktop:
+    image: bolivia-pharma-airflow:3.3.2
+    user: "${AIRFLOW_UID:-50000}:0"
+    entrypoint: ["/usr/bin/dumb-init", "--", "bash", "/opt/pharma/browser-desktop.sh"]
+    ports:
+      - "127.0.0.1:6080:6080"
+    healthcheck:
+      test: ["CMD-SHELL", "DISPLAY=:99 xdpyinfo >/dev/null && curl --fail http://localhost:6080/vnc.html >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  airflow-db:
+  airflow-logs:
+  airflow-snapshots:

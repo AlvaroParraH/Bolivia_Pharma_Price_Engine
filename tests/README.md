@@ -51,3 +51,7 @@ Local delayed-content fixtures verify category readiness before selection and
 the 60-second readiness timeout configuration.
 Regression fixtures cover loaded main categories with hidden “Todo” links,
 explicit empty categories and subcategory-to-main navigation.
+An animated-sentinel browser fixture reproduces the stability-wait timeout and
+verifies that instant DOM scrolling loads the next batch exactly once and
+requires the terminal marker. Scroll errors and no-progress timeouts remain
+failures, without replaying previously written rows.

@@ -1,0 +1,11 @@
+**
+!pyproject.toml
+!uv.lock
+!pipelines/
+!pipelines/ingestion/
+!pipelines/ingestion/**
+!pipelines/orchestration/
+!pipelines/orchestration/airflow/
+!pipelines/orchestration/airflow/browser-desktop.sh
+**/__pycache__/
+**/*.pyc

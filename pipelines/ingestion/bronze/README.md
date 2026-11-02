@@ -190,6 +190,10 @@ an explicit terminal/empty-products message. Timeouts, missing sentinels,
 HTTP errors, unexpected redirects and invalid records fail the snapshot, rather
 than treating incomplete output as success. Repeated product IDs are retained
 with warnings. Main categories are not separately expanded into nested crawls.
+The status sentinel is scrolled into view directly using an instant DOM scroll,
+without waiting for its animated loading indicator to become stable. Collection
+still waits for additional products or an explicit terminal message before
+proceeding; scrolling alone never establishes completion.
 
 The shared writer saves `scrape_hipermaxi_<UTC timestamp>.csv`, `.jsonl`, and
 `.parquet` plus `summary.json` in a unique ignored `data/hipermaxi/` directory.

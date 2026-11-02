@@ -356,6 +356,62 @@ class BrowserTests(unittest.TestCase):
         self.assertEqual([rows[0]["product_id"] for rows in batches], ["123", "456"])
         self.assertEqual([rows[0]["batch"] for rows in batches], ["1", "2"])
         page.wait_for_function.assert_called_once_with(hipermaxi.WAIT_FOR_BATCH, arg=1)
+        page.locator.return_value.last.evaluate.assert_called_once()
+        page.locator.return_value.last.scroll_into_view_if_needed.assert_not_called()
+
+    def test_animated_scroll_sentinel_loads_next_batch_without_stability_wait(self):
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": 800, "height": 400})
+                page.set_default_timeout(1000)
+                url = hipermaxi.BRANCH_URL + "/categoria/farmacia-quirurgicos"
+                page.route("**/*", lambda route: route.fulfill(
+                    content_type="text/html", body=f"""
+                        <style>
+                          @keyframes loading {{ from {{ transform: translateX(0); }}
+                            to {{ transform: translateX(200px); }} }}
+                          [role="status"] {{ width: 40px; height: 20px;
+                            animation: loading 1s linear infinite alternate; }}
+                        </style>
+                        <main><h1>Farmacia Quirurgicos</h1>
+                          <article>
+                            <a href="{hipermaxi.BRANCH_PATH}/producto/123/example"><h3>First</h3></a>
+                            <div aria-label="Precio del producto"><span>Bs 1.00</span></div>
+                          </article>
+                          <div style="height:2000px"></div>
+                          <div role="status">Loading</div>
+                        </main>
+                        <script>
+                          const sentinel = document.querySelector('[role="status"]');
+                          const observer = new IntersectionObserver(entries => {{
+                            if (!entries.some(entry => entry.isIntersecting)) return;
+                            observer.disconnect();
+                            document.querySelector('main').insertAdjacentHTML('beforeend', `
+                              <article>
+                                <a href="{hipermaxi.BRANCH_PATH}/producto/456/second"><h3>Second</h3></a>
+                                <div aria-label="Precio del producto"><span>Bs 2.00</span></div>
+                              </article><p>Has visto todos los productos</p>`);
+                            sentinel.remove();
+                          }});
+                          observer.observe(sentinel);
+                        </script>
+                    """,
+                ))
+                page.goto(url)
+                with self.assertRaises(PlaywrightTimeoutError):
+                    page.locator('main [role="status"]').scroll_into_view_if_needed(timeout=300)
+                rows = []
+                result = hipermaxi.collect_category(
+                    page, {"name": "Farmacia Quirurgicos", "url": url},
+                    policy(), 0, "test", rows.extend,
+                )
+                self.assertEqual([row["product_id"] for row in rows], ["123", "456"])
+                self.assertEqual([row["batch"] for row in rows], ["1", "2"])
+                self.assertEqual(result["observations"], 2)
+                self.assertTrue(result["terminal_marker"])
+            finally:
+                browser.close()
 
     def test_no_progress_times_out_not_success(self):
         page = MagicMock()
@@ -368,6 +424,23 @@ class BrowserTests(unittest.TestCase):
                 page, {"name": "Farmacia Genéricos", "url": page.url},
                 policy(), 0, "test", lambda _rows: None,
             )
+
+    def test_scroll_error_stops_collection_without_replaying_writes(self):
+        page = MagicMock()
+        page.url = hipermaxi.BRANCH_URL + "/categoria/farmacia-genericos"
+        page.locator.return_value.evaluate_all.return_value = [card()]
+        page.locator.return_value.inner_text.return_value = "Loading"
+        page.locator.return_value.last.evaluate.side_effect = hipermaxi.PlaywrightError("Page closed")
+        batches = []
+        with patch.object(hipermaxi, "open_all_products"), self.assertRaisesRegex(
+            hipermaxi.PlaywrightError, "Page closed",
+        ):
+            hipermaxi.collect_category(
+                page, {"name": "Farmacia Genericos", "url": page.url},
+                policy(), 0, "test", batches.append,
+            )
+        self.assertEqual(len(batches), 1)
+        page.wait_for_function.assert_not_called()
 
     def test_cards_discovery_and_infinite_scroll_terminal_marker(self):
         with sync_playwright() as playwright:
