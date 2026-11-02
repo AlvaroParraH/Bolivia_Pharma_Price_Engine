@@ -39,7 +39,7 @@ class SnapshotUploadTests(unittest.TestCase):
         )
 
         expected = [
-            f"farmacorp/2026-11-02/{filename}"
+            f"farmacorp/20261102/{filename}"
             for filename in (
                 self.summary["output_files"]["csv"],
                 self.summary["output_files"]["jsonl"],
@@ -65,7 +65,7 @@ class SnapshotUploadTests(unittest.TestCase):
                 self.snapshot, "farmacorp", "test-connection", "test-container",
             )
 
-        self.assertTrue(all(path.startswith("farmacorp/2026-12-31/") for path in uploaded))
+        self.assertTrue(all(path.startswith("farmacorp/20261231/") for path in uploaded))
 
     @patch.object(upload_snapshot.BlobServiceClient, "from_connection_string")
     def test_completed_with_warnings_is_uploadable(self, create_service):

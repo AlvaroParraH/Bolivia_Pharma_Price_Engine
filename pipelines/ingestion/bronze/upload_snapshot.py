@@ -54,7 +54,7 @@ def upload_snapshot(
     if not isinstance(run_id, str) or not run_id or Path(run_id).name != run_id or run_id in {".", ".."}:
         raise ValueError("Snapshot summary has an invalid run_id")
     try:
-        snapshot_date = datetime.strptime(run_id[:16], "%Y%m%dT%H%M%SZ").strftime("%Y-%m-%d")
+        snapshot_date = datetime.strptime(run_id[:16], "%Y%m%dT%H%M%SZ").strftime("%Y%m%d")
     except ValueError as error:
         raise ValueError("Snapshot run_id must begin with a UTC timestamp in YYYYMMDDTHHMMSSZ format") from error
 
