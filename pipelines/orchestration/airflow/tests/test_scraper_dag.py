@@ -24,7 +24,7 @@ class ScraperDagTests(unittest.TestCase):
             self.assertFalse(task.upstream_task_ids)
             self.assertFalse(task.downstream_task_ids)
             self.assertFalse(task.do_xcom_push)
-            self.assertIn("--output /opt/airflow/snapshots/", task.bash_command)
+            self.assertIn("--output \"$snapshot_root\"", task.bash_command)
         self.assertIn("--main-categories", self.dag.get_task("scrape_farmacorp").bash_command)
         self.assertIn("--interactive", self.dag.get_task("scrape_hipermaxi").bash_command)
 
@@ -49,6 +49,22 @@ class ScraperDagTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("--output", result.stdout)
+        result = subprocess.run(
+            [
+                "/opt/pharma/.venv/bin/python", "-m",
+                "pipelines.ingestion.bronze.upload_snapshot", "--help",
+            ],
+            cwd="/opt/pharma", capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--snapshot-root", result.stdout)
+
+    def test_each_collection_uploads_after_scraping(self) -> None:
+        for task in self.dag.tasks:
+            scrape_index = task.bash_command.index("scrape_")
+            upload_index = task.bash_command.index("upload_snapshot")
+            self.assertLess(scrape_index, upload_index)
+            self.assertIn("--snapshot-root", task.bash_command)
 
     def test_browser_and_snapshot_runtime(self) -> None:
         result = subprocess.run(

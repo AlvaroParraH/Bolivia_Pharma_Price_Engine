@@ -55,3 +55,8 @@ An animated-sentinel browser fixture reproduces the stability-wait timeout and
 verifies that instant DOM scrolling loads the next batch exactly once and
 requires the terminal marker. Scroll errors and no-progress timeouts remain
 failures, without replaying previously written rows.
+
+Azure snapshot upload tests use mocked Blob Storage clients. They verify that
+only completed snapshots are uploaded, artifact paths are namespaced by retailer
+and run ID, and the summary manifest is uploaded last. They make no Azure
+account calls.

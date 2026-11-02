@@ -72,6 +72,10 @@ services:
   airflow-scheduler:
     <<: *airflow
     command: scheduler
+    environment:
+      <<: *airflow-environment
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:?Set AZURE_STORAGE_CONNECTION_STRING in the root .env file}
+      AZURE_STORAGE_CONTAINER: ${AZURE_STORAGE_CONTAINER:?Set AZURE_STORAGE_CONTAINER in the root .env file}
     shm_size: "2gb"
     volumes:
       - ./dags:/opt/airflow/dags:ro
