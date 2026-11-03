@@ -76,8 +76,10 @@ internal Docker display port to untrusted networks.
 
 Scraper subprocess failures fail their tasks, retain partial files, and do not
 skip the other pharmacies. There are no automatic task retries to avoid replaying
-collections. Hipermaxi separately retries a timed-out category up to twice,
-retaining earlier raw rows and recording attempts in the local summary.
+collections. All three scrapers separately retry a timed-out category up to twice,
+waiting at least 10 seconds plus jitter, retaining earlier raw rows, and recording
+attempts in the local summary. Recovery completes with warnings; a third timeout
+fails the snapshot and prevents upload. Non-timeout errors are not retried.
 Clearing/re-running a task creates a new snapshot, not a resume.
 Observe existing request pacing and site policy; no live collection is performed
 as part of deployment validation.

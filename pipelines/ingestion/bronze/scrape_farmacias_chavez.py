@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
+from pipelines.ingestion.bronze.category_retries import collect_with_retries
 from pipelines.ingestion.bronze.snapshot import SnapshotWriter
 
 
@@ -263,7 +264,10 @@ def run(output: Path, categories: list[str] | None, delay: float, allow_missing_
         "run_id": run_id, "started_at": utc_now(), "status": "running",
         "observations": 0, "categories": [], "output_files": snapshot.files,
         "warnings": [], "requested_categories": categories or [],
+        "category_timeout_retries": 2,
     }
+    attempts: list[dict[str, object]] = []
+    manifest["category_attempts"] = attempts
     count = 0
     completed: list[dict[str, object]] = []
 
@@ -313,7 +317,15 @@ def run(output: Path, categories: list[str] | None, delay: float, allow_missing_
                 manifest["requested_categories"] = names
                 save()
                 for name in names:
-                    completed.append(collect_category(page, name, policy, delay, run_id, write))
+                    def collect_attempt(attempt_number: int) -> dict[str, object]:
+                        if attempt_number > 1:
+                            navigate(page, BASE_URL + "/", policy, delay)
+                        return collect_category(page, name, policy, delay, run_id, write)
+
+                    completed.append(collect_with_retries(
+                        collect_attempt, category={"name": name}, attempts=attempts,
+                        observations=lambda: count, save=save, delay=delay, logger=LOGGER,
+                    ))
                     manifest["categories"] = completed
                     save()
             finally:
@@ -322,7 +334,7 @@ def run(output: Path, categories: list[str] | None, delay: float, allow_missing_
         manifest["active_page_url"] = None
         manifest["status"] = "completed_with_warnings" if manifest["warnings"] or any(
             item["warnings"] for item in completed
-        ) else "completed"
+        ) or any(attempt["status"] == "timed_out" for attempt in attempts) else "completed"
     except BaseException as error:
         manifest["status"] = "failed"
         manifest["error"] = f"{type(error).__name__}: {error}"

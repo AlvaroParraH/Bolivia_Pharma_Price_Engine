@@ -552,7 +552,7 @@ class OutputTests(unittest.TestCase):
                 hipermaxi, "navigate",
             ), patch.object(hipermaxi, "catalog_action", return_value=[entry]), patch.object(
                 hipermaxi, "collect_category", side_effect=collect,
-            ), patch.object(hipermaxi, "pause") as pause:
+            ), patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
                 if failures == 3:
                     with self.assertRaises(PlaywrightTimeoutError):
                         hipermaxi.run(Path(output), None, 3)

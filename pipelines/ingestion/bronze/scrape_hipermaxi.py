@@ -21,6 +21,7 @@ from playwright.sync_api import (
     TimeoutError as PlaywrightTimeoutError, sync_playwright,
 )
 
+from pipelines.ingestion.bronze.category_retries import collect_with_retries
 from pipelines.ingestion.bronze.snapshot import SnapshotWriter
 from pipelines.ingestion.bronze.scrape_farmacorp import RobotsPolicy
 
@@ -428,46 +429,13 @@ def run(
                 manifest["requested_categories"] = entries
                 save()
                 for entry in entries:
-                    for attempt_number in range(1, 4):
-                        attempt: dict[str, object] = {
-                            "name": entry["name"], "url": entry["url"],
-                            "attempt": attempt_number, "started_at": utc_now(), "status": "running",
-                        }
-                        attempts.append(attempt)
-                        initial_count = count
-                        save()
-                        try:
-                            result = collect_category(
-                                page, entry, policy, delay, run_id, write, manual_timeout,
-                            )
-                        except PlaywrightTimeoutError as error:
-                            attempt.update({
-                                "status": "timed_out", "error": str(error),
-                                "observations": count - initial_count, "finished_at": utc_now(),
-                            })
-                            save()
-                            if attempt_number == 3:
-                                LOGGER.error("%s: category timed out after 3 attempts", entry["name"])
-                                raise
-                            LOGGER.warning(
-                                "%s: attempt %d timed out; retaining raw rows and retrying category "
-                                "(attempt %d/3)", entry["name"], attempt_number, attempt_number + 1,
-                            )
-                            pause(max(10.0, delay))
-                        except BaseException as error:
-                            attempt.update({
-                                "status": "failed", "error": f"{type(error).__name__}: {error}",
-                                "observations": count - initial_count, "finished_at": utc_now(),
-                            })
-                            save()
-                            raise
-                        else:
-                            attempt.update({
-                                "status": "completed", "observations": count - initial_count,
-                                "finished_at": utc_now(),
-                            })
-                            completed.append(result)
-                            break
+                    completed.append(collect_with_retries(
+                        lambda _: collect_category(
+                            page, entry, policy, delay, run_id, write, manual_timeout,
+                        ),
+                        category=entry, attempts=attempts, observations=lambda: count,
+                        save=save, delay=delay, logger=LOGGER,
+                    ))
                     manifest["categories"] = completed
                     save()
             finally:

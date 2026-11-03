@@ -49,8 +49,13 @@ Hipermaxi tests cover dot-decimal prices, discounts, branch-restricted URLs,
 DOM extraction, infinite-scroll completion signals, missing-sentinel failures,
 bot-validation stops, robots rule precedence, failed manifests and equivalent
 output formats. These are offline tests, not proof of live access or coverage.
-Category retry fixtures verify up to three total timeout attempts, retained raw
-rows, attempt summaries, recovery warnings, and no retry for non-timeout errors.
+All three scrapers have category retry fixtures covering up to three total timeout
+attempts, retained raw rows, attempt summaries, recovery warnings, and no retry for
+non-timeout errors. Farmacorp and Chavez fixtures exercise real pagination
+restarting from page one, finalized Parquet row counts, and stopping before later
+categories on exhaustion. Shared retry tests verify persisted state transitions,
+attempt timestamps/errors, the 10-second delay floor, longer configured delays,
+and jitter without sleeping or making network requests.
 Interactive-mode tests cover visible-launch configuration, manual timeout and
 window-close failures, allowed validation host, return URL/robots checks,
 interrupted DOM operations and same-session return using local browser fixtures.

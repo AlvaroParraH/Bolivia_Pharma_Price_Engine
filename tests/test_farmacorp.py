@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import pyarrow.parquet as pq
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 from pipelines.ingestion.bronze import scrape_farmacorp as farmacorp
 from pipelines.ingestion.bronze.upload_snapshot import upload_snapshot
@@ -378,6 +378,70 @@ class OfflineBrowserTests(unittest.TestCase):
 
 
 class OutputTests(unittest.TestCase):
+    def test_category_timeout_restarts_pagination_and_retains_rows(self):
+        url = farmacorp.BASE_URL + "/collections/ofertas"
+        first = ("Ofertas", 2, [card()], url + "?page=2")
+        last = ("Ofertas", 2, [card(href="/products/456")], None)
+        for failures in (1, 2, 3):
+            pages = []
+            for _ in range(failures):
+                pages.extend([first, PlaywrightTimeoutError("Page stalled")])
+            if failures < 3:
+                pages.extend([first, last])
+            with self.subTest(failures=failures), TemporaryDirectory() as output, patch.object(
+                farmacorp, "sync_playwright",
+            ) as playwright, patch.object(farmacorp, "navigate") as navigate, patch.object(
+                farmacorp, "read_category", side_effect=pages,
+            ), patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
+                context = playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.return_value
+                context.request.get.return_value.status = 200
+                context.request.get.return_value.text.return_value = "User-agent: *\nAllow: /"
+                if failures == 3:
+                    with self.assertRaises(PlaywrightTimeoutError):
+                        farmacorp.run([url, farmacorp.BASE_URL + "/collections/beauty"], False, Path(output), 3)
+                else:
+                    farmacorp.run([url], False, Path(output), 3)
+                summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
+                attempts = min(failures + 1, 3)
+                self.assertEqual(summary["category_timeout_retries"], 2)
+                self.assertEqual(len(summary["category_attempts"]), attempts)
+                self.assertEqual(
+                    [a["status"] for a in summary["category_attempts"]],
+                    ["timed_out"] * failures + (["completed"] if failures < 3 else []),
+                )
+                self.assertEqual(
+                    [a["observations"] for a in summary["category_attempts"]],
+                    [1] * failures + ([2] if failures < 3 else []),
+                )
+                self.assertEqual(summary["observations"], failures + (2 if failures < 3 else 0))
+                self.assertEqual(
+                    summary["status"], "failed" if failures == 3 else "completed_with_warnings",
+                )
+                self.assertEqual([call.args[1] for call in navigate.call_args_list], [url, url + "?page=2"] * attempts)
+                self.assertEqual(pause.call_count, min(failures, 2))
+                directory = next(Path(output).iterdir())
+                rows = pq.read_table(directory / summary["output_files"]["parquet"]).to_pylist()
+                self.assertEqual(len(rows), summary["observations"])
+                self.assertEqual(sum(row["product_url"].endswith("/123") for row in rows), attempts)
+                self.assertEqual(len(summary["categories"]), 0 if failures == 3 else 1)
+
+    def test_non_timeout_category_failure_is_not_retried(self):
+        with TemporaryDirectory() as output, patch.object(
+            farmacorp, "sync_playwright",
+        ) as playwright, patch.object(
+            farmacorp, "collect_category", side_effect=ValueError("Invalid product"),
+        ) as collect, patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
+            context = playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.return_value
+            context.request.get.return_value.status = 200
+            context.request.get.return_value.text.return_value = "User-agent: *\nAllow: /"
+            with self.assertRaisesRegex(ValueError, "Invalid product"):
+                farmacorp.run([farmacorp.BASE_URL + "/collections/ofertas"], False, Path(output), 3)
+            collect.assert_called_once()
+            pause.assert_not_called()
+            summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["category_attempts"][0]["status"], "failed")
+
     def test_main_category_run_excludes_ofertas_and_keeps_csv_category(self):
         def write_category(page, url, policy, delay, run_id, write_rows):
             row = farmacorp.observation(

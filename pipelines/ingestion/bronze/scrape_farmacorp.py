@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
+from pipelines.ingestion.bronze.category_retries import collect_with_retries
 from pipelines.ingestion.bronze.snapshot import SnapshotWriter
 
 BASE_URL = "https://farmacorp.com"
@@ -358,7 +359,10 @@ def run(
         "excluded_categories": excluded_categories or [],
         "observations": 0, "categories": [],
         "output_files": output_files,
+        "category_timeout_retries": 2,
     }
+    attempts: list[dict[str, object]] = []
+    manifest["category_attempts"] = attempts
     summary = directory / "summary.json"
 
     def save_summary() -> None:
@@ -412,7 +416,12 @@ def run(
                 manifest["requested_categories"] = categories
                 save_summary()
                 for url in categories:
-                    completed.append(collect_category(page, url, policy, delay, run_id, write_rows))
+                    completed.append(collect_with_retries(
+                        lambda _: collect_category(page, url, policy, delay, run_id, write_rows),
+                        category={"name": urlsplit(url).path.rsplit("/", 1)[-1], "url": url},
+                        attempts=attempts, observations=lambda: count,
+                        save=save_summary, delay=delay, logger=LOGGER,
+                    ))
                     manifest["categories"] = completed
                     save_summary()
                 manifest["active_category"] = None
@@ -420,7 +429,10 @@ def run(
             finally:
                 browser.close()
         manifest["status"] = (
-            "completed_with_warnings" if any(category["warnings"] for category in completed)
+            "completed_with_warnings" if (
+                any(category["warnings"] for category in completed)
+                or any(attempt["status"] == "timed_out" for attempt in attempts)
+            )
             else "completed"
         )
     except BaseException as error:

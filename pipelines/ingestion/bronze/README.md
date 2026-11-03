@@ -69,6 +69,21 @@ Retain snapshots for historical comparisons. No Snowflake connection is made.
 All three scraper summaries include `retailer` for identity validation by the
 Azure uploader used by the Airflow DAG.
 
+### Category timeout retries (all three scrapers)
+
+Playwright timeouts during category collection trigger at most two retries of
+the entire category (three total attempts) in the same browser session.
+Retries wait at least 10 seconds, or the configured delay if longer, plus
+0-2 seconds of jitter. Pagination/scroll counters restart; Chavez returns to
+the homepage before reopening the category. Previously written raw rows stay
+in the snapshot and can repeat, so downstream processing must deduplicate them.
+Summaries record `category_timeout_retries` and `category_attempts`, including
+category identity, attempt number, status, timestamps, errors, and row counts.
+A recovered timeout yields `completed_with_warnings`; a third timeout fails
+the snapshot and prevents upload. Non-timeout errors, policy/validation errors,
+and Hipermaxi manual-validation expiry are not retried. Initial robots checks
+and category discovery are outside this retry scope.
+
 ### Price and product semantics
 
 - `price`: the displayed regular/compare-at price when discounted, otherwise
@@ -101,8 +116,9 @@ logged and recorded as explicit warnings. Repeated raw page observations are
 retained, not silently discarded. Such runs are **completed_with_warnings**:
 all linked pages were traversed, but exact catalog coverage is not guaranteed.
 Use canonical product URL and category to identify repeated observations.
-Errors, invalid pagination, or missing required fields stop the run; partial
-output is retained with **failed** status. Rerun to produce a new snapshot.
+Timeouts use the category retry policy above. Other errors, invalid pagination,
+or missing required fields stop the run; partial output is retained with
+**failed** status. Rerun to produce a new snapshot.
 A completed scrape is not an atomic site-wide snapshot: prices can change
 while it runs, so use per-page observation times.
 An explicit `No se encontro coincidencias` catalog marker with no products or
@@ -169,7 +185,8 @@ are in national currency, include tax, and may change without notice.
 
 Pagination uses the public next button, waits for both the URL and product
 cards to change, checks page numbers and terminal button state, and records
-changing totals/overlaps as warnings. Full repeated pages, required-field
+changing totals/overlaps as warnings. Category timeouts use the retry policy
+above. Full repeated pages, required-field
 failures, or invalid navigation stop the run and mark partial output failed.
 Three-second minimum pauses apply between pages/categories; images, media,
 and fonts are blocked. No accounts, carts, purchases, login bypass, private
@@ -192,12 +209,8 @@ uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_hiperm
 ```
 
 Omitting `--category` selects all discovered main-menu categories (14 observed).
-Playwright category timeouts trigger at most two retries of that entire category
-in the same browser session, with at least 10 seconds plus jitter between attempts.
-Already-written raw rows are retained and may repeat; downstream processing must
-deduplicate them. `category_attempts` records attempt status, times, errors, and
-row counts. Recovery yields `completed_with_warnings`; three timeouts fail the
-snapshot. Non-timeout errors and manual-validation expiry are not retried.
+Category timeouts follow the shared retry policy above; manual-validation expiry
+is not retried.
 Use repeatable `--exclude-category <slug>` to omit a discovered category.
 Airflow and local runs keep all categories unless exclusions are explicitly
 supplied. Summaries record `excluded_categories`

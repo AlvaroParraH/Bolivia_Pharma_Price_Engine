@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from urllib.robotparser import RobotFileParser
 
 import pyarrow.parquet as pq
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 from pipelines.ingestion.bronze import scrape_farmacias_chavez as chavez
 from pipelines.ingestion.bronze.snapshot import SnapshotWriter
@@ -197,6 +197,80 @@ class TraversalTests(unittest.TestCase):
 
 
 class SnapshotTests(unittest.TestCase):
+    def test_category_timeout_restarts_pagination_and_retains_rows(self):
+        url = chavez.BASE_URL + "/ca/test/1"
+        policy = RobotFileParser()
+        policy.parse(["User-agent: *", "Allow: /"])
+        first = (2, [card()], 1, 2)
+        last = (2, [card() | {"href": "/p/other-456"}], 2, 2)
+        for failures in (1, 2, 3):
+            pages = []
+            for _ in range(failures):
+                pages.extend([first, PlaywrightTimeoutError("Page stalled")])
+            if failures < 3:
+                pages.extend([first, last])
+            with self.subTest(failures=failures), TemporaryDirectory() as output, patch.object(
+                chavez, "sync_playwright",
+            ) as playwright, patch.object(chavez, "navigate") as navigate, patch.object(
+                chavez, "discover_names", return_value=["Test", "Other"],
+            ), patch.object(chavez, "check_robots", return_value=(policy, [])), patch.object(
+                chavez, "open_category", return_value=url,
+            ) as open_category, patch.object(
+                chavez, "read_page", side_effect=pages,
+            ), patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
+                page = playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value
+                page.url = url
+                page.locator.return_value.count.return_value = 1
+                page.locator.return_value.get_attribute.return_value = "true"
+                if failures == 3:
+                    with self.assertRaises(PlaywrightTimeoutError):
+                        chavez.run(Path(output), ["Test", "Other"], 3, False)
+                else:
+                    chavez.run(Path(output), ["Test"], 3, False)
+                summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
+                attempts = min(failures + 1, 3)
+                self.assertEqual(summary["category_timeout_retries"], 2)
+                self.assertEqual(len(summary["category_attempts"]), attempts)
+                self.assertEqual(
+                    [a["status"] for a in summary["category_attempts"]],
+                    ["timed_out"] * failures + (["completed"] if failures < 3 else []),
+                )
+                self.assertEqual(
+                    [a["observations"] for a in summary["category_attempts"]],
+                    [1] * failures + ([2] if failures < 3 else []),
+                )
+                self.assertEqual(summary["observations"], failures + (2 if failures < 3 else 0))
+                self.assertEqual(
+                    summary["status"], "failed" if failures == 3 else "completed_with_warnings",
+                )
+                self.assertEqual(open_category.call_count, attempts)
+                self.assertTrue(all(call.args[1] == "Test" for call in open_category.call_args_list))
+                self.assertEqual(navigate.call_count, attempts)
+                self.assertTrue(all(call.args[1] == chavez.BASE_URL + "/" for call in navigate.call_args_list))
+                # Page pacing also calls time.sleep; count only the retry pauses.
+                self.assertEqual(sum(call.args[0] >= 10 for call in pause.call_args_list), min(failures, 2))
+                directory = next(Path(output).iterdir())
+                rows = pq.read_table(directory / summary["output_files"]["parquet"]).to_pylist()
+                self.assertEqual(len(rows), summary["observations"])
+                self.assertEqual(sum(row["product_id"] == "123" for row in rows), attempts)
+                self.assertEqual(len(summary["categories"]), 0 if failures == 3 else 1)
+
+    def test_non_timeout_category_failure_is_not_retried(self):
+        with TemporaryDirectory() as output, patch.object(
+            chavez, "sync_playwright",
+        ), patch.object(chavez, "check_robots", return_value=(MagicMock(), [])), patch.object(
+            chavez, "navigate",
+        ), patch.object(chavez, "discover_names", return_value=["Test"]), patch.object(
+            chavez, "collect_category", side_effect=ValueError("Invalid product"),
+        ) as collect, patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
+            with self.assertRaisesRegex(ValueError, "Invalid product"):
+                chavez.run(Path(output), None, 3, False)
+            collect.assert_called_once()
+            pause.assert_not_called()
+            summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["category_attempts"][0]["status"], "failed")
+
     def test_formats_and_nulls_match_on_failure(self):
         row = make_row(card())
         with TemporaryDirectory() as output:
