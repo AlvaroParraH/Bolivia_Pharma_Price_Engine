@@ -34,8 +34,8 @@ with DAG(
         bash_command="""set -euo pipefail
 mkdir -p /opt/airflow/snapshots/farmacorp
 snapshot_root="$(mktemp -d /opt/airflow/snapshots/farmacorp/airflow-run-XXXXXX)"
-/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.scrape_farmacorp --main-categories --output "$snapshot_root"
-/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.upload_snapshot --snapshot-root "$snapshot_root" --retailer farmacorp""",
+/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.extract.scrape_farmacorp --main-categories --output "$snapshot_root"
+/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.load.upload_snapshot --snapshot-root "$snapshot_root" --retailer farmacorp""",
         cwd="/opt/pharma",
         env={"DISPLAY": "browser-desktop:99"},
         append_env=True,
@@ -47,8 +47,8 @@ snapshot_root="$(mktemp -d /opt/airflow/snapshots/farmacorp/airflow-run-XXXXXX)"
         bash_command="""set -euo pipefail
 mkdir -p /opt/airflow/snapshots/farmacias_chavez
 snapshot_root="$(mktemp -d /opt/airflow/snapshots/farmacias_chavez/airflow-run-XXXXXX)"
-/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.scrape_farmacias_chavez {% if params.allow_missing_chavez_robots %}--allow-missing-robots{% endif %} --output "$snapshot_root"
-/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.upload_snapshot --snapshot-root "$snapshot_root" --retailer farmacias_chavez""",
+/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez {% if params.allow_missing_chavez_robots %}--allow-missing-robots{% endif %} --output "$snapshot_root"
+/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.load.upload_snapshot --snapshot-root "$snapshot_root" --retailer farmacias_chavez""",
         cwd="/opt/pharma",
         env={"DISPLAY": "browser-desktop:99"},
         append_env=True,
@@ -60,8 +60,8 @@ snapshot_root="$(mktemp -d /opt/airflow/snapshots/farmacias_chavez/airflow-run-X
         bash_command="""set -euo pipefail
 mkdir -p /opt/airflow/snapshots/hipermaxi
 snapshot_root="$(mktemp -d /opt/airflow/snapshots/hipermaxi/airflow-run-XXXXXX)"
-/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.scrape_hipermaxi --interactive --validation-timeout 300 --output "$snapshot_root"
-/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.upload_snapshot --snapshot-root "$snapshot_root" --retailer hipermaxi""",
+/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.extract.scrape_hipermaxi --interactive --validation-timeout 300 --output "$snapshot_root"
+/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.load.upload_snapshot --snapshot-root "$snapshot_root" --retailer hipermaxi""",
         cwd="/opt/pharma",
         env={"DISPLAY": "browser-desktop:99"},
         append_env=True,

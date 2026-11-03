@@ -21,9 +21,9 @@ from playwright.sync_api import (
     TimeoutError as PlaywrightTimeoutError, sync_playwright,
 )
 
-from pipelines.ingestion.bronze.category_retries import collect_with_retries
-from pipelines.ingestion.bronze.snapshot import SnapshotWriter
-from pipelines.ingestion.bronze.scrape_farmacorp import RobotsPolicy
+from pipelines.ingestion.bronze.extract.category_retries import collect_with_retries
+from pipelines.ingestion.bronze.extract.snapshot import SnapshotWriter
+from pipelines.ingestion.bronze.extract.scrape_farmacorp import RobotsPolicy
 
 
 BASE_URL = "https://www.hipermaxi.com"
@@ -474,7 +474,7 @@ def main() -> None:
         "--validation-timeout", type=float, default=300,
         help="Seconds allowed for each manual validation in interactive mode (default: 300)",
     )
-    parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[3] / "data" / "hipermaxi")
+    parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[4] / "data" / "hipermaxi")
     args = parser.parse_args()
     if not 3 <= args.delay < float("inf"):
         parser.error("--delay must be finite and at least three seconds")

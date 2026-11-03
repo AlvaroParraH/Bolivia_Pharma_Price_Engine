@@ -45,6 +45,10 @@ Run all three retailer suites:
 uv run --no-env-file --locked python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
+Entrypoint checks invoke `--help` for the relocated `extract/` scrapers and
+`load/` Azure uploader without network access. Mocked CLI calls verify that
+default snapshots still go to the project's root `data/<retailer>/` directory.
+
 Hipermaxi tests cover dot-decimal prices, discounts, branch-restricted URLs,
 DOM extraction, infinite-scroll completion signals, missing-sentinel failures,
 bot-validation stops, robots rule precedence, failed manifests and equivalent

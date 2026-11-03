@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pyarrow.parquet as pq
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
-from pipelines.ingestion.bronze import scrape_hipermaxi as hipermaxi
-from pipelines.ingestion.bronze.snapshot import SnapshotWriter
+from pipelines.ingestion.bronze.extract import scrape_hipermaxi as hipermaxi
+from pipelines.ingestion.bronze.extract.snapshot import SnapshotWriter
 
 
 def card():
@@ -552,7 +552,7 @@ class OutputTests(unittest.TestCase):
                 hipermaxi, "navigate",
             ), patch.object(hipermaxi, "catalog_action", return_value=[entry]), patch.object(
                 hipermaxi, "collect_category", side_effect=collect,
-            ), patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
+            ), patch("pipelines.ingestion.bronze.extract.category_retries.time.sleep") as pause:
                 if failures == 3:
                     with self.assertRaises(PlaywrightTimeoutError):
                         hipermaxi.run(Path(output), None, 3)

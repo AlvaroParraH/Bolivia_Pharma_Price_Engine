@@ -9,8 +9,8 @@ from urllib.robotparser import RobotFileParser
 import pyarrow.parquet as pq
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
-from pipelines.ingestion.bronze import scrape_farmacias_chavez as chavez
-from pipelines.ingestion.bronze.snapshot import SnapshotWriter
+from pipelines.ingestion.bronze.extract import scrape_farmacias_chavez as chavez
+from pipelines.ingestion.bronze.extract.snapshot import SnapshotWriter
 
 
 def card():
@@ -217,7 +217,7 @@ class SnapshotTests(unittest.TestCase):
                 chavez, "open_category", return_value=url,
             ) as open_category, patch.object(
                 chavez, "read_page", side_effect=pages,
-            ), patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
+            ), patch("pipelines.ingestion.bronze.extract.category_retries.time.sleep") as pause:
                 page = playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value
                 page.url = url
                 page.locator.return_value.count.return_value = 1
@@ -262,7 +262,7 @@ class SnapshotTests(unittest.TestCase):
             chavez, "navigate",
         ), patch.object(chavez, "discover_names", return_value=["Test"]), patch.object(
             chavez, "collect_category", side_effect=ValueError("Invalid product"),
-        ) as collect, patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
+        ) as collect, patch("pipelines.ingestion.bronze.extract.category_retries.time.sleep") as pause:
             with self.assertRaisesRegex(ValueError, "Invalid product"):
                 chavez.run(Path(output), None, 3, False)
             collect.assert_called_once()

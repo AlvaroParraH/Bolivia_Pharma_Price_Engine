@@ -20,6 +20,14 @@ class ScraperDagTests(unittest.TestCase):
             {"scrape_farmacorp", "scrape_farmacias_chavez", "scrape_hipermaxi"},
         )
         for task in self.dag.tasks:
+            self.assertIn(
+                f"-m pipelines.ingestion.bronze.extract.{task.task_id} ",
+                task.bash_command,
+            )
+            self.assertIn(
+                "-m pipelines.ingestion.bronze.load.upload_snapshot ",
+                task.bash_command,
+            )
             self.assertEqual(task.retries, 0)
             self.assertFalse(task.upstream_task_ids)
             self.assertFalse(task.downstream_task_ids)
@@ -44,7 +52,7 @@ class ScraperDagTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     "/opt/pharma/.venv/bin/python", "-m",
-                    f"pipelines.ingestion.bronze.scrape_{retailer}", "--help",
+                    f"pipelines.ingestion.bronze.extract.scrape_{retailer}", "--help",
                 ],
                 cwd="/opt/pharma", capture_output=True, text=True, timeout=30,
             )
@@ -53,7 +61,7 @@ class ScraperDagTests(unittest.TestCase):
         result = subprocess.run(
             [
                 "/opt/pharma/.venv/bin/python", "-m",
-                "pipelines.ingestion.bronze.upload_snapshot", "--help",
+                "pipelines.ingestion.bronze.load.upload_snapshot", "--help",
             ],
             cwd="/opt/pharma", capture_output=True, text=True, timeout=30,
         )

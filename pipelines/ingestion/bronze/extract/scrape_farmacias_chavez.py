@@ -17,8 +17,8 @@ from uuid import uuid4
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
-from pipelines.ingestion.bronze.category_retries import collect_with_retries
-from pipelines.ingestion.bronze.snapshot import SnapshotWriter
+from pipelines.ingestion.bronze.extract.category_retries import collect_with_retries
+from pipelines.ingestion.bronze.extract.snapshot import SnapshotWriter
 
 
 BASE_URL = "https://www.farmaciaschavez.com.bo"
@@ -349,7 +349,7 @@ def run(output: Path, categories: list[str] | None, delay: float, allow_missing_
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--category", action="append", help="Exact main menu name; repeat, defaults to all main categories")
-    parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[3] / "data" / "farmacias_chavez")
+    parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[4] / "data" / "farmacias_chavez")
     parser.add_argument("--delay", type=float, default=3)
     parser.add_argument("--allow-missing-robots", action="store_true", help="Explicitly approve public crawling when robots.txt is missing/HTML")
     args = parser.parse_args()

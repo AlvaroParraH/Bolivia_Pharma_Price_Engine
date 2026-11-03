@@ -2,26 +2,36 @@
 
 **Primary source type selected:** multiple source types.
 
+## Code layout
+
+- `extract/`: retailer scrapers, category retries, and local snapshot writing.
+- `load/`: publication/loading code, currently `upload_snapshot.py` for Azure.
+  Azure-to-Snowflake loading is not implemented yet.
+
+Run modules from the project root using the paths below. Default local output
+remains under the root `data/` directory. No `scrapers/` or `apis/` subfolders
+are needed until additional source integrations justify them.
+
 ## Farmacorp collection
 
 `scrape_farmacorp.py` uses Playwright/Chromium to read public collection product cards.
 From the project root, collect **every page of Ofertas**:
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacorp
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacorp
 ```
 
 For another collection or every collection linked in the Categorias menu:
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacorp --category beauty
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacorp --all-categories
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacorp --category beauty
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacorp --all-categories
 ```
 
 To collect the remaining **main categories**, without re-collecting Ofertas:
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacorp --main-categories --exclude-category ofertas
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacorp --main-categories --exclude-category ofertas
 ```
 
 `--main-categories` uses the top-level menu only, excluding nested subcategories
@@ -144,13 +154,13 @@ categories. Nested subcategories are not independently crawled. Repeat products
 across categories are retained with their category names for filtering.
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacias_chavez --allow-missing-robots
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez --allow-missing-robots
 ```
 
 For a bounded collection, specify exact menu labels:
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacias_chavez --category "Ofertas Del Mes" --allow-missing-robots
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez --category "Ofertas Del Mes" --allow-missing-robots
 ```
 
 The site currently returns an HTML app page for `robots.txt`, not usable
@@ -205,7 +215,7 @@ before collecting or republishing data.
 Once access is approved, the CLI supports:
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_hipermaxi --category farmacia-genericos
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_hipermaxi --category farmacia-genericos
 ```
 
 Omitting `--category` selects all discovered main-menu categories (14 observed).
@@ -275,7 +285,7 @@ The HTTPS `newassets.hcaptcha.com` embedded frame is allowed only while the
 interactive Radware page is displayed; top-level navigation to it stays blocked.
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_hipermaxi --interactive --validation-timeout 300 --category farmacia-genericos
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_hipermaxi --interactive --validation-timeout 300 --category farmacia-genericos
 ```
 
 The timeout is a finite positive number of seconds (default 300 per challenge).
@@ -295,10 +305,9 @@ or prove future live coverage. Offline browser fixtures test the manual-return
 workflow; one live pilot also returned from validation before a separate
 category-readiness failure. The later full collection completed successfully.
 
-## Placeholder
+## Future Snowflake loading
 
-`ingest_template.py` is intentionally unimplemented. Use it only as a boundary
-placeholder. Before implementing extraction and load logic, agree the source,
+Implement Azure-to-Snowflake Bronze loading under `load/` after agreeing the
 approved authentication, data classification, incremental/replay semantics,
-error handling, and raw-object ownership. Raw data belongs in Snowflake, not
-in this source-code directory.
+error handling, and raw-object ownership. Raw data does not belong in this
+source-code directory.

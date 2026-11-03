@@ -52,6 +52,12 @@ Do not put credentials or rendered connection profiles in this repository.
 
 ## Run the three scrapers
 
+Scraper modules live under `pipelines.ingestion.bronze.extract`; Azure publication
+uses `pipelines.ingestion.bronze.load.upload_snapshot`. After updating module
+paths, rebuild the image and recreate the scheduler before running the updated
+DAG: ingestion code is copied into the image, while DAGs are bind-mounted.
+Do not recreate the scheduler during active collection without approval.
+
 The `scrape_pharmacy_prices` DAG has three independent tasks, limited to one
 running task and one active DAG run at a time. Each task collects all main
 categories for its retailer, then uploads only the Parquet file

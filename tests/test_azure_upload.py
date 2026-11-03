@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock, patch
 
-from pipelines.ingestion.bronze import upload_snapshot
+from pipelines.ingestion.bronze.load import upload_snapshot
 
 
 class SnapshotUploadTests(unittest.TestCase):

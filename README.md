@@ -33,7 +33,8 @@ Record observation dates and source provenance; do not bypass access controls.
 
 ## Project layout
 
-- `pipelines/ingestion/bronze/` - source extraction and raw ingestion.
+- `pipelines/ingestion/bronze/` - `extract/` for source collection and local
+  snapshots; `load/` for publishing/loading (currently Azure uploads).
 - `pipelines/dbt/` - Silver transformations and Gold marts.
 - `pipelines/orchestration/airflow/dags/` - orchestration.
 - `tests/` - local Python test guidance.
@@ -63,7 +64,7 @@ setup requires no credentials.
 Start with all pages in Ofertas:
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacorp
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacorp
 ```
 
 Timestamped JSONL/CSV/Parquet snapshots and a completion summary are saved under
@@ -74,7 +75,7 @@ other categories, validation, and responsible collection limits.
 To collect the other main categories into a new filterable CSV/JSONL/Parquet snapshot:
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacorp --main-categories --exclude-category ofertas
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacorp --main-categories --exclude-category ofertas
 ```
 
 Every row includes `category` and `category_url`. Existing Ofertas snapshots
@@ -83,7 +84,7 @@ are preserved; nested subcategories are not separately crawled in this mode.
 ## Collect Farmacias Chavez prices
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_farmacias_chavez --allow-missing-robots
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez --allow-missing-robots
 ```
 
 Collects paginated main-menu categories into timestamped CSV/JSONL/Parquet
@@ -95,7 +96,7 @@ uncertainty, category filtering, price semantics, and location limitations.
 ## Collect Hipermaxi prices
 
 A collector is available in
-[`scrape_hipermaxi.py`](pipelines/ingestion/bronze/scrape_hipermaxi.py).
+[`scrape_hipermaxi.py`](pipelines/ingestion/bronze/extract/scrape_hipermaxi.py).
 It targets La Paz / Farmacia Calacoto, main categories and infinite scrolling,
 with matching timestamped CSV/JSONL/Parquet output. The first full collection
 completed all 14 main categories with 4,366 unique products, including 318 with
@@ -107,7 +108,7 @@ bug; future access is not guaranteed. No automatic validation bypass is used. Se
 For approved collection with manual validation, opt into a visible browser:
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_hipermaxi --interactive
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_hipermaxi --interactive
 ```
 
 If redirected to Radware, collection pauses for up to five minutes for you to

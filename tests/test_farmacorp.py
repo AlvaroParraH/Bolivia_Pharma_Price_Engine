@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pyarrow.parquet as pq
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
-from pipelines.ingestion.bronze import scrape_farmacorp as farmacorp
-from pipelines.ingestion.bronze.upload_snapshot import upload_snapshot
+from pipelines.ingestion.bronze.extract import scrape_farmacorp as farmacorp
+from pipelines.ingestion.bronze.load.upload_snapshot import upload_snapshot
 
 
 def card(**changes) -> farmacorp.Card:
@@ -392,7 +392,7 @@ class OutputTests(unittest.TestCase):
                 farmacorp, "sync_playwright",
             ) as playwright, patch.object(farmacorp, "navigate") as navigate, patch.object(
                 farmacorp, "read_category", side_effect=pages,
-            ), patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
+            ), patch("pipelines.ingestion.bronze.extract.category_retries.time.sleep") as pause:
                 context = playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.return_value
                 context.request.get.return_value.status = 200
                 context.request.get.return_value.text.return_value = "User-agent: *\nAllow: /"
@@ -430,7 +430,7 @@ class OutputTests(unittest.TestCase):
             farmacorp, "sync_playwright",
         ) as playwright, patch.object(
             farmacorp, "collect_category", side_effect=ValueError("Invalid product"),
-        ) as collect, patch("pipelines.ingestion.bronze.category_retries.time.sleep") as pause:
+        ) as collect, patch("pipelines.ingestion.bronze.extract.category_retries.time.sleep") as pause:
             context = playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.return_value
             context.request.get.return_value.status = 200
             context.request.get.return_value.text.return_value = "User-agent: *\nAllow: /"
@@ -589,7 +589,7 @@ class OutputTests(unittest.TestCase):
             self.assertEqual(json_rows, expected)
             self.assertEqual(table.column_names, list(farmacorp.Observation.__annotations__))
             self.assertEqual(summary["observations"], 2)
-            with patch("pipelines.ingestion.bronze.upload_snapshot.BlobServiceClient.from_connection_string"):
+            with patch("pipelines.ingestion.bronze.load.upload_snapshot.BlobServiceClient.from_connection_string"):
                 uploaded = upload_snapshot(directory, "farmacorp", "test-connection", "test-container")
             self.assertEqual(len(uploaded), 1)
             self.assertTrue(uploaded[0].endswith(".parquet"))

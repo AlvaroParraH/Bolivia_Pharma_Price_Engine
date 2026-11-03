@@ -4,16 +4,16 @@ from unittest.mock import Mock, patch
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from pipelines.ingestion.bronze.category_retries import collect_with_retries
+from pipelines.ingestion.bronze.extract.category_retries import collect_with_retries
 
 
 class RetryTests(unittest.TestCase):
     def test_retry_delay_and_persisted_attempt_metadata(self):
         for delay, jitter, expected in [(3, 0, 10), (3, 2, 12), (15, 1, 16)]:
             with self.subTest(delay=delay, jitter=jitter), patch(
-                "pipelines.ingestion.bronze.category_retries.time.sleep",
+                "pipelines.ingestion.bronze.extract.category_retries.time.sleep",
             ) as sleep, patch(
-                "pipelines.ingestion.bronze.category_retries.random.uniform", return_value=jitter,
+                "pipelines.ingestion.bronze.extract.category_retries.random.uniform", return_value=jitter,
             ) as uniform:
                 attempts = []
                 saved_statuses = []

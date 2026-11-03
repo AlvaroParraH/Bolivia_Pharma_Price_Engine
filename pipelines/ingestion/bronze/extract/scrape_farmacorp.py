@@ -17,13 +17,13 @@ from uuid import uuid4
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
-from pipelines.ingestion.bronze.category_retries import collect_with_retries
-from pipelines.ingestion.bronze.snapshot import SnapshotWriter
+from pipelines.ingestion.bronze.extract.category_retries import collect_with_retries
+from pipelines.ingestion.bronze.extract.snapshot import SnapshotWriter
 
 BASE_URL = "https://farmacorp.com"
 USER_AGENT = "BoliviaPharmaPriceEngine/0.1"
 LOGGER = logging.getLogger(__name__)
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 
 class Card(TypedDict):
