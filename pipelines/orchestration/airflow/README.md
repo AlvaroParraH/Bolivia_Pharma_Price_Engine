@@ -66,9 +66,8 @@ In the Airflow UI, enable it and trigger a run. Explicitly select
 robots rules; otherwise the Chavez scraper stops if usable rules are absent.
 
 Before triggering, open http://localhost:6080/vnc.html and click **Connect**.
-The Hipermaxi task explicitly excludes `No Comestible` (`no-comestible`) due
-to its stalled infinite-scroll loading. Other discovered categories remain in
-scope; the exclusion is recorded in the local summary.
+The Hipermaxi task includes all discovered main categories, including
+`No Comestible` (`no-comestible`); no category exclusions are configured.
 Hipermaxi launches visible Chromium there. Watch its task logs and interact
 manually if site validation appears; each challenge has a 300-second timeout.
 No challenge solving, access bypass, or session reuse is automated. The browser
@@ -77,7 +76,9 @@ internal Docker display port to untrusted networks.
 
 Scraper subprocess failures fail their tasks, retain partial files, and do not
 skip the other pharmacies. There are no automatic task retries to avoid replaying
-collections. Clearing/re-running a task creates a new snapshot, not a resume.
+collections. Hipermaxi separately retries a timed-out category up to twice,
+retaining earlier raw rows and recording attempts in the local summary.
+Clearing/re-running a task creates a new snapshot, not a resume.
 Observe existing request pacing and site policy; no live collection is performed
 as part of deployment validation.
 

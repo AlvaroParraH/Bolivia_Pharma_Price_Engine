@@ -49,6 +49,8 @@ Hipermaxi tests cover dot-decimal prices, discounts, branch-restricted URLs,
 DOM extraction, infinite-scroll completion signals, missing-sentinel failures,
 bot-validation stops, robots rule precedence, failed manifests and equivalent
 output formats. These are offline tests, not proof of live access or coverage.
+Category retry fixtures verify up to three total timeout attempts, retained raw
+rows, attempt summaries, recovery warnings, and no retry for non-timeout errors.
 Interactive-mode tests cover visible-launch configuration, manual timeout and
 window-close failures, allowed validation host, return URL/robots checks,
 interrupted DOM operations and same-session return using local browser fixtures.

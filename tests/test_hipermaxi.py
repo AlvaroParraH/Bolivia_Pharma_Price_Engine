@@ -517,6 +517,58 @@ class PacingTests(unittest.TestCase):
 
 
 class OutputTests(unittest.TestCase):
+    def test_non_timeout_category_failure_is_not_retried(self):
+        entry = {"name": "Alimentos", "url": hipermaxi.BRANCH_URL + "/categoria/alimentos"}
+        with TemporaryDirectory() as output, patch.object(
+            hipermaxi, "sync_playwright",
+        ), patch.object(hipermaxi, "robots", return_value=policy()), patch.object(
+            hipermaxi, "navigate",
+        ), patch.object(hipermaxi, "catalog_action", return_value=[entry]), patch.object(
+            hipermaxi, "collect_category", side_effect=ValueError("Invalid product"),
+        ) as collect, patch.object(hipermaxi, "pause") as pause:
+            with self.assertRaisesRegex(ValueError, "Invalid product"):
+                hipermaxi.run(Path(output), None, 3)
+            collect.assert_called_once()
+            pause.assert_not_called()
+            summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
+            self.assertEqual(summary["category_attempts"][0]["status"], "failed")
+            self.assertEqual(summary["status"], "failed")
+
+    def test_category_timeout_retries_retain_rows_and_record_attempts(self):
+        entry = {"name": "Alimentos", "url": hipermaxi.BRANCH_URL + "/categoria/alimentos"}
+        for failures in (1, 2, 3):
+            calls = []
+
+            def collect(page, category, robots, delay, run_id, write, timeout):
+                calls.append(category)
+                write([hipermaxi.observation(card(), "Alimentos", entry["url"], 1, run_id, "test")])
+                if len(calls) <= failures:
+                    raise PlaywrightTimeoutError("Batch stalled")
+                return {"warnings": [], "observations": 1}
+
+            with self.subTest(failures=failures), TemporaryDirectory() as output, patch.object(
+                hipermaxi, "sync_playwright",
+            ), patch.object(hipermaxi, "robots", return_value=policy()), patch.object(
+                hipermaxi, "navigate",
+            ), patch.object(hipermaxi, "catalog_action", return_value=[entry]), patch.object(
+                hipermaxi, "collect_category", side_effect=collect,
+            ), patch.object(hipermaxi, "pause") as pause:
+                if failures == 3:
+                    with self.assertRaises(PlaywrightTimeoutError):
+                        hipermaxi.run(Path(output), None, 3)
+                else:
+                    hipermaxi.run(Path(output), None, 3)
+                summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
+                expected_attempts = min(failures + 1, 3)
+                self.assertEqual(len(calls), expected_attempts)
+                self.assertEqual(summary["observations"], expected_attempts)
+                self.assertEqual(len(summary["category_attempts"]), expected_attempts)
+                self.assertEqual(
+                    summary["status"], "failed" if failures == 3 else "completed_with_warnings",
+                )
+                self.assertEqual(pause.call_count, min(failures, 2))
+                self.assertTrue(all(a["observations"] == 1 for a in summary["category_attempts"]))
+
     def test_explicit_exclusion_preserves_other_categories(self):
         entries = [
             {"name": "No Comestible", "url": hipermaxi.BRANCH_URL + "/categoria/no-comestible"},

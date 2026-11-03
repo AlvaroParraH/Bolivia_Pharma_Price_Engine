@@ -362,7 +362,10 @@ def run(
         "categories": [], "observations": 0, "output_files": snapshot.files,
         "interactive": interactive, "validation_timeout_seconds": manual_timeout,
         "minimum_delay_seconds": max(3.0, delay), "extra_delay_range_seconds": [0, 2],
+        "category_attempts": [], "category_timeout_retries": 2,
     }
+    attempts: list[dict[str, object]] = []
+    manifest["category_attempts"] = attempts
     count = 0
     completed: list[dict[str, object]] = []
 
@@ -425,16 +428,56 @@ def run(
                 manifest["requested_categories"] = entries
                 save()
                 for entry in entries:
-                    completed.append(collect_category(
-                        page, entry, policy, delay, run_id, write, manual_timeout,
-                    ))
+                    for attempt_number in range(1, 4):
+                        attempt: dict[str, object] = {
+                            "name": entry["name"], "url": entry["url"],
+                            "attempt": attempt_number, "started_at": utc_now(), "status": "running",
+                        }
+                        attempts.append(attempt)
+                        initial_count = count
+                        save()
+                        try:
+                            result = collect_category(
+                                page, entry, policy, delay, run_id, write, manual_timeout,
+                            )
+                        except PlaywrightTimeoutError as error:
+                            attempt.update({
+                                "status": "timed_out", "error": str(error),
+                                "observations": count - initial_count, "finished_at": utc_now(),
+                            })
+                            save()
+                            if attempt_number == 3:
+                                LOGGER.error("%s: category timed out after 3 attempts", entry["name"])
+                                raise
+                            LOGGER.warning(
+                                "%s: attempt %d timed out; retaining raw rows and retrying category "
+                                "(attempt %d/3)", entry["name"], attempt_number, attempt_number + 1,
+                            )
+                            pause(max(10.0, delay))
+                        except BaseException as error:
+                            attempt.update({
+                                "status": "failed", "error": f"{type(error).__name__}: {error}",
+                                "observations": count - initial_count, "finished_at": utc_now(),
+                            })
+                            save()
+                            raise
+                        else:
+                            attempt.update({
+                                "status": "completed", "observations": count - initial_count,
+                                "finished_at": utc_now(),
+                            })
+                            completed.append(result)
+                            break
                     manifest["categories"] = completed
                     save()
             finally:
                 browser.close()
         manifest["active_category"] = None
         manifest["active_batch"] = None
-        manifest["status"] = "completed_with_warnings" if any(item["warnings"] for item in completed) else "completed"
+        manifest["status"] = "completed_with_warnings" if (
+            any(item["warnings"] for item in completed)
+            or any(attempt["status"] == "timed_out" for attempt in attempts)
+        ) else "completed"
     except BaseException as error:
         manifest["status"] = "failed"
         manifest["error"] = f"{type(error).__name__}: {error}"

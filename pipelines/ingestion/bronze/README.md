@@ -192,9 +192,15 @@ uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_hiperm
 ```
 
 Omitting `--category` selects all discovered main-menu categories (14 observed).
+Playwright category timeouts trigger at most two retries of that entire category
+in the same browser session, with at least 10 seconds plus jitter between attempts.
+Already-written raw rows are retained and may repeat; downstream processing must
+deduplicate them. `category_attempts` records attempt status, times, errors, and
+row counts. Recovery yields `completed_with_warnings`; three timeouts fail the
+snapshot. Non-timeout errors and manual-validation expiry are not retried.
 Use repeatable `--exclude-category <slug>` to omit a discovered category.
-Airflow passes `--exclude-category no-comestible`; local runs keep all categories
-unless exclusions are explicitly supplied. Summaries record `excluded_categories`
+Airflow and local runs keep all categories unless exclusions are explicitly
+supplied. Summaries record `excluded_categories`
 and the actual requested scope. Unknown exclusions or an empty remaining scope fail.
 The collector uses an already-loaded main category directly. If navigation
 lands on a subcategory, it selects “Todo” to return to the main category.
