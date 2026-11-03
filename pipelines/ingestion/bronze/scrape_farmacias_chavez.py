@@ -259,6 +259,7 @@ def run(output: Path, categories: list[str] | None, delay: float, allow_missing_
     directory.mkdir(parents=True, exist_ok=False)
     snapshot = SnapshotWriter(directory, f"scrape_farmacias_chavez_{timestamp}", FIELDS)
     manifest: dict[str, object] = {
+        "retailer": "farmacias_chavez",
         "run_id": run_id, "started_at": utc_now(), "status": "running",
         "observations": 0, "categories": [], "output_files": snapshot.files,
         "warnings": [], "requested_categories": categories or [],

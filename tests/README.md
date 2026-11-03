@@ -18,7 +18,14 @@ checks, HTTP/redirect errors, and explicit failure status for partial output.
 Output tests verify timestamped filenames and equivalent CSV/JSONL/Parquet
 records, including nullable prices, multiple page batches, empty output, and
 Parquet finalization on handled collection failure.
+Multi-buy `3 x 2` fixtures preserve the displayed unit price, keep calculated
+discount fields null, and verify explicit category warnings. Invalid percentage
+discounts still fail. A generated Farmacorp snapshot is passed to the mocked
+Azure uploader to check the scraper-to-upload manifest contract.
 Tests do not request the live Farmacorp site.
+Empty-terminal-page fixtures cover a nonzero category heading with the explicit
+no-results marker, retaining prior rows and count warnings. Unknown markers and
+contradictory next-page links remain failures.
 
 Run both retailer suites, including the shared snapshot writer regression
 checks:
@@ -57,6 +64,6 @@ requires the terminal marker. Scroll errors and no-progress timeouts remain
 failures, without replaying previously written rows.
 
 Azure snapshot upload tests use mocked Blob Storage clients. They verify that
-only completed snapshots are uploaded, artifact paths are namespaced by retailer
-and run ID, and the summary manifest is uploaded last. They make no Azure
+only Parquet from completed snapshots is uploaded, artifact paths are namespaced
+by retailer and UTC date (`YYYYMMDD`), and CSV/JSONL/summary stay local. They make no Azure
 account calls.

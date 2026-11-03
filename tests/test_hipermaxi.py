@@ -517,6 +517,35 @@ class PacingTests(unittest.TestCase):
 
 
 class OutputTests(unittest.TestCase):
+    def test_explicit_exclusion_preserves_other_categories(self):
+        entries = [
+            {"name": "No Comestible", "url": hipermaxi.BRANCH_URL + "/categoria/no-comestible"},
+            {"name": "Genericos", "url": hipermaxi.BRANCH_URL + "/categoria/genericos"},
+        ]
+        for excluded, error in [
+            (["no-comestible"], None),
+            (["unknown"], "Unknown excluded"),
+            (["no-comestible", "genericos"], "No categories remain"),
+        ]:
+            with self.subTest(excluded=excluded), TemporaryDirectory() as output, patch.object(
+                hipermaxi, "sync_playwright",
+            ), patch.object(hipermaxi, "robots", return_value=policy()), patch.object(
+                hipermaxi, "navigate",
+            ), patch.object(hipermaxi, "catalog_action", return_value=entries), patch.object(
+                hipermaxi, "collect_category", return_value={"warnings": []},
+            ) as collect:
+                if error:
+                    with self.assertRaisesRegex(ValueError, error):
+                        hipermaxi.run(Path(output), None, 0, excluded_categories=excluded)
+                    collect.assert_not_called()
+                else:
+                    directory = hipermaxi.run(Path(output), None, 0, excluded_categories=excluded)
+                    collect.assert_called_once()
+                    self.assertEqual(collect.call_args.args[1], entries[1])
+                    summary = json.loads((directory / "summary.json").read_text())
+                    self.assertEqual(summary["excluded_categories"], excluded)
+                    self.assertEqual(summary["requested_categories"], [entries[1]])
+
     def test_interactive_launch_and_manual_timeout_wired_into_run(self):
         for interactive in (False, True):
             with self.subTest(interactive=interactive), TemporaryDirectory() as output, patch.object(
@@ -538,6 +567,7 @@ class OutputTests(unittest.TestCase):
                 self.assertEqual(navigate.call_args.args[-1], 42 if interactive else 0)
                 self.assertEqual(collect.call_args.args[-1], 42 if interactive else 0)
                 summary = json.loads((directory / "summary.json").read_text())
+                self.assertEqual(summary["retailer"], "hipermaxi")
                 self.assertEqual(summary["status"], "completed")
                 self.assertEqual(summary["interactive"], interactive)
                 self.assertEqual(summary["validation_timeout_seconds"], 42 if interactive else 0)

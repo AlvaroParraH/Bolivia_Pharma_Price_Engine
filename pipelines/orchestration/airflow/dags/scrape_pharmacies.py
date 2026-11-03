@@ -60,7 +60,7 @@ snapshot_root="$(mktemp -d /opt/airflow/snapshots/farmacias_chavez/airflow-run-X
         bash_command="""set -euo pipefail
 mkdir -p /opt/airflow/snapshots/hipermaxi
 snapshot_root="$(mktemp -d /opt/airflow/snapshots/hipermaxi/airflow-run-XXXXXX)"
-/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.scrape_hipermaxi --interactive --validation-timeout 300 --output "$snapshot_root"
+/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.scrape_hipermaxi --interactive --validation-timeout 300 --exclude-category no-comestible --output "$snapshot_root"
 /opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.upload_snapshot --snapshot-root "$snapshot_root" --retailer hipermaxi""",
         cwd="/opt/pharma",
         env={"DISPLAY": "browser-desktop:99"},

@@ -9,6 +9,7 @@ import pyarrow.parquet as pq
 from playwright.sync_api import sync_playwright
 
 from pipelines.ingestion.bronze import scrape_farmacorp as farmacorp
+from pipelines.ingestion.bronze.upload_snapshot import upload_snapshot
 
 
 def card(**changes) -> farmacorp.Card:
@@ -88,6 +89,23 @@ class PriceTests(unittest.TestCase):
         self.assertIsNone(row["discount_percent"])
         self.assertEqual(row["discount_label"], "Venta")
 
+    def test_multibuy_badge_preserves_displayed_unit_price(self):
+        row = observation(card(
+            name="Bebida Carbonatada Sirius Guarana Botella X 350Ml",
+            href="/collections/lo-nuevo/products/7771621380859",
+            current_price_text="Bs7,50", regular_price_text=None, discount_label="3 x 2",
+        ))
+        self.assertEqual(row["price"], "7.50")
+        self.assertEqual(row["current_price"], "7.50")
+        self.assertIsNone(row["discount_price"])
+        self.assertIsNone(row["discount_percent"])
+        self.assertEqual(row["discount_label"], "3 x 2")
+
+    def test_invalid_promotion_still_fails(self):
+        for label in ["Ahorra 15%", "3 x 0", "2 x 3", "3 x 3"]:
+            with self.subTest(label=label), self.assertRaisesRegex(ValueError, "Discount label"):
+                observation(card(regular_price_text=None, discount_label=label))
+
     def test_invalid_card_fails_instead_of_skipping(self):
         for changes in [
             {"name": None}, {"href": None}, {"current_price_text": None},
@@ -166,6 +184,26 @@ class PaginationTests(unittest.TestCase):
         result, rows = self.collect([("Empty", 0, [], None)])
         self.assertEqual(result["products"], 0)
         self.assertEqual(rows, [])
+
+    def test_multibuy_offer_is_collected_with_explicit_warning(self):
+        result, rows = self.collect([
+            ("LO NUEVO", 1, [card(
+                current_price_text="Bs7,50", regular_price_text=None, discount_label="3 x 2",
+            )], None),
+        ])
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]["discount_price"])
+        self.assertTrue(any("3 x 2" in warning for warning in result["warnings"]))
+
+    def test_terminal_empty_page_retains_prior_rows_and_warns(self):
+        result, rows = self.collect([
+            ("Medicamentos", 2, [card()], "/collections/ofertas?page=2"),
+            ("Medicamentos", 2, [], None),
+        ])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(result["pages"], 2)
+        self.assertTrue(any("explicit empty-results terminal page" in w for w in result["warnings"]))
+        self.assertTrue(any("last advertised total 2" in w for w in result["warnings"]))
 
     def test_count_mismatch_has_explicit_warning(self):
         result, rows = self.collect([("Ofertas", 2, [card()], None)])
@@ -282,6 +320,59 @@ class OfflineBrowserTests(unittest.TestCase):
                 farmacorp.BASE_URL + "/collections/beauty",
             ])
             self.assertEqual(len(farmacorp.discover_categories(page)), 4)
+        finally:
+            page.close()
+
+    def test_multibuy_badge_from_dom_preserves_price(self):
+        page = self.browser.new_page()
+        try:
+            page.set_content("""
+                <h1>LO NUEVO (1 producto)</h1>
+                <li class="productgrid--item">
+                  <h2 class="productitem--title">
+                    <a href="/collections/lo-nuevo/products/7771621380859">
+                      Bebida Carbonatada Sirius Guarana Botella X 350Ml
+                    </a>
+                  </h2>
+                  <div class="price--main"><span class="money">Bs7,50</span></div>
+                  <span class="badge--sale">3 x 2</span>
+                </li>
+            """)
+            _, _, cards, _ = farmacorp.read_category(page)
+            self.assertEqual(cards[0]["discount_label"], "3 x 2")
+            self.assertIsNone(cards[0]["regular_price_text"])
+            row = observation(cards[0])
+            self.assertEqual(row["price"], "7.50")
+            self.assertIsNone(row["discount_price"])
+        finally:
+            page.close()
+
+    def test_explicit_empty_terminal_page_with_nonzero_heading(self):
+        page = self.browser.new_page()
+        try:
+            page.set_default_timeout(500)
+            page.set_content("""
+                <main><h1>Medicamentos (3800 productos)</h1>
+                <h2 class="productgrid--no-results-title">No se encontro coincidencias</h2>
+                </main>
+            """)
+            self.assertEqual(farmacorp.read_category(page), ("Medicamentos", 3800, [], None))
+            page.locator("main").evaluate("""main => main.insertAdjacentHTML('beforeend',
+                '<div class="pagination--next"><a href="/collections/medicamentos?page=162">Next</a></div>')""")
+            with self.assertRaisesRegex(ValueError, "next-page"):
+                farmacorp.read_category(page)
+        finally:
+            page.close()
+
+    def test_unknown_empty_marker_does_not_establish_completion(self):
+        page = self.browser.new_page()
+        try:
+            page.set_content("""
+                <h1>Medicamentos (3800 productos)</h1>
+                <h2 class="productgrid--no-results-title">Please try again</h2>
+            """)
+            with self.assertRaisesRegex(ValueError, "No product cards"):
+                farmacorp.read_category(page)
         finally:
             page.close()
 
@@ -419,6 +510,7 @@ class OutputTests(unittest.TestCase):
                 [farmacorp.BASE_URL + "/collections/ofertas"], False, Path(output), 0,
             )
             summary = json.loads((directory / "summary.json").read_text())
+            self.assertEqual(summary["retailer"], "farmacorp")
             for extension, name in summary["output_files"].items():
                 self.assertRegex(name, rf"^scrape_farmacorp_\d{{8}}T\d{{6}}Z\.{extension}$")
                 self.assertEqual(name, f"scrape_farmacorp_{summary['run_id'].split('_')[0]}.{extension}")
@@ -433,6 +525,11 @@ class OutputTests(unittest.TestCase):
             self.assertEqual(json_rows, expected)
             self.assertEqual(table.column_names, list(farmacorp.Observation.__annotations__))
             self.assertEqual(summary["observations"], 2)
+            with patch("pipelines.ingestion.bronze.upload_snapshot.BlobServiceClient.from_connection_string"):
+                uploaded = upload_snapshot(directory, "farmacorp", "test-connection", "test-container")
+            self.assertEqual(len(uploaded), 1)
+            self.assertTrue(uploaded[0].endswith(".parquet"))
+            self.assertTrue(all(path.startswith(f"farmacorp/{summary['run_id'][:8]}/") for path in uploaded))
             with (directory / summary["output_files"]["csv"]).open() as stream:
                 csv_rows = list(csv.DictReader(stream))
             for expected_row, csv_row in zip(expected, csv_rows):

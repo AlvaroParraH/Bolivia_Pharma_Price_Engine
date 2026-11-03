@@ -54,17 +54,21 @@ Do not put credentials or rendered connection profiles in this repository.
 
 The `scrape_pharmacy_prices` DAG has three independent tasks, limited to one
 running task and one active DAG run at a time. Each task collects all main
-categories for its retailer, then uploads the CSV, JSONL, Parquet, and summary
+categories for its retailer, then uploads only the Parquet file
 to the configured Azure Blob Storage container. The blob layout is
 `<retailer>/<date>/<filename>`, with `date` taken from the snapshot's UTC run
-timestamp and formatted `YYYYMMDD`; the summary is uploaded last as the
-completion marker. Failed scraper runs are not uploaded. Upload errors fail the
+timestamp and formatted `YYYYMMDD`. CSV, JSONL, and the summary stay local.
+The local summary must identify a completed snapshot before upload.
+Failed scraper runs are not uploaded. Upload errors fail the
 task while retaining its local snapshot. It is manual-only and starts paused.
 In the Airflow UI, enable it and trigger a run. Explicitly select
 `allow_missing_chavez_robots` if you approve collection despite missing/HTML
 robots rules; otherwise the Chavez scraper stops if usable rules are absent.
 
 Before triggering, open http://localhost:6080/vnc.html and click **Connect**.
+The Hipermaxi task explicitly excludes `No Comestible` (`no-comestible`) due
+to its stalled infinite-scroll loading. Other discovered categories remain in
+scope; the exclusion is recorded in the local summary.
 Hipermaxi launches visible Chromium there. Watch its task logs and interact
 manually if site validation appears; each challenge has a 300-second timeout.
 No challenge solving, access bypass, or session reuse is automated. The browser
@@ -86,10 +90,10 @@ mkdir -p data/airflow-snapshots
 docker compose --env-file .env -f pipelines/orchestration/airflow/compose.yaml cp airflow-scheduler:/opt/airflow/snapshots/. data/airflow-snapshots/
 ```
 
-Snapshots survive `down` but not deliberate volume deletion. Azure upload is
-not atomic across multiple blobs; consumers should treat the presence of
-`summary.json` as the completion marker. Partial uploads without that marker
-are not complete snapshots. No automatic cleanup or Snowflake load is configured.
+Snapshots survive `down` but not deliberate volume deletion. Only the finalized
+Parquet blob is published; there is no remote summary completion marker.
+Existing CSV, JSONL, or summary blobs from earlier uploads are not deleted.
+No automatic cleanup or Snowflake load is configured.
 
 Offline container checks (no pharmacy requests):
 

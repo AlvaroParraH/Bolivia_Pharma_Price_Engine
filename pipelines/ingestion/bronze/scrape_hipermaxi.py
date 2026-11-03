@@ -344,6 +344,7 @@ def collect_category(
 def run(
     output: Path, selected: list[str] | None, delay: float, *,
     interactive: bool = False, validation_timeout: float = 300,
+    excluded_categories: list[str] | None = None,
 ) -> Path:
     if not 0 < validation_timeout < float("inf"):
         raise ValueError("validation_timeout must be finite and positive")
@@ -354,8 +355,10 @@ def run(
     directory.mkdir(parents=True, exist_ok=False)
     snapshot = SnapshotWriter(directory, f"scrape_hipermaxi_{timestamp}", FIELDS)
     manifest: dict[str, object] = {
+        "retailer": "hipermaxi",
         "run_id": run_id, "started_at": utc_now(), "status": "running",
         "branch_url": BRANCH_URL, "requested_categories": selected or [],
+        "excluded_categories": excluded_categories or [],
         "categories": [], "observations": 0, "output_files": snapshot.files,
         "interactive": interactive, "validation_timeout_seconds": manual_timeout,
         "minimum_delay_seconds": max(3.0, delay), "extra_delay_range_seconds": [0, 2],
@@ -404,11 +407,21 @@ def run(
                 entries = catalog_action(
                     page, policy, manual_timeout, lambda: discover_categories(page),
                 )
+                slugs = {entry["url"].rsplit("/", 1)[1] for entry in entries}
+                if set(excluded_categories or []) - slugs:
+                    raise ValueError(f"Unknown excluded category slugs: {set(excluded_categories or [])-slugs}")
                 if selected:
-                    slugs = {entry["url"].rsplit("/", 1)[1] for entry in entries}
                     if set(selected) - slugs:
                         raise ValueError(f"Unknown category slugs: {set(selected)-slugs}")
                     entries = [entry for entry in entries if entry["url"].rsplit("/", 1)[1] in selected]
+                entries = [
+                    entry for entry in entries
+                    if entry["url"].rsplit("/", 1)[1] not in (excluded_categories or [])
+                ]
+                if not entries:
+                    raise ValueError("No categories remain after applying exclusions")
+                if excluded_categories:
+                    LOGGER.info("Explicitly excluding category slugs: %s", excluded_categories)
                 manifest["requested_categories"] = entries
                 save()
                 for entry in entries:
@@ -436,6 +449,7 @@ def run(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--category", action="append", help="Main category slug; repeat, defaults to all Calacoto pharmacy categories")
+    parser.add_argument("--exclude-category", action="append", help="Main category slug to exclude; repeat as needed")
     parser.add_argument(
         "--delay", type=float, default=3,
         help="Minimum pause before navigation, category selection and scroll batches "
@@ -459,6 +473,7 @@ def main() -> None:
     run(
         args.output, args.category, args.delay,
         interactive=args.interactive, validation_timeout=args.validation_timeout,
+        excluded_categories=args.exclude_category,
     )
 
 

@@ -27,6 +27,7 @@ class ScraperDagTests(unittest.TestCase):
             self.assertIn("--output \"$snapshot_root\"", task.bash_command)
         self.assertIn("--main-categories", self.dag.get_task("scrape_farmacorp").bash_command)
         self.assertIn("--interactive", self.dag.get_task("scrape_hipermaxi").bash_command)
+        self.assertIn("--exclude-category no-comestible", self.dag.get_task("scrape_hipermaxi").bash_command)
 
     def test_chavez_requires_explicit_approval(self) -> None:
         for approved in (False, True):

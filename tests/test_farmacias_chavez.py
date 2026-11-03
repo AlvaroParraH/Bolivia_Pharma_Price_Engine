@@ -225,6 +225,7 @@ class SnapshotTests(unittest.TestCase):
                 locale="es-BO", timezone_id="America/La_Paz",
             )
             summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
+            self.assertEqual(summary["retailer"], "farmacias_chavez")
             self.assertEqual(summary["status"], "failed")
             self.assertIn("policy error", summary["error"])
             playwright.return_value.__enter__.return_value.chromium.launch.return_value.close.assert_called_once()

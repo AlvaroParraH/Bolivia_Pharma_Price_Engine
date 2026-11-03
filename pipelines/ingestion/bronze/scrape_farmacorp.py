@@ -170,7 +170,10 @@ def observation(
     if regular < current:
         raise ValueError(f"Regular price is below current price for {card['name']}")
     discounted = regular > current
-    if card["discount_label"] and card["discount_label"].casefold() != "venta" and not discounted:
+    label = card["discount_label"] or ""
+    multibuy = re.fullmatch(r"(\d+)\s*x\s*(\d+)", label, re.IGNORECASE)
+    valid_multibuy = multibuy is not None and int(multibuy[1]) > int(multibuy[2]) > 0
+    if label and label.casefold() != "venta" and not discounted and not valid_multibuy:
         raise ValueError(f"Discount label without a lower price for {card['name']}")
     return {
         "run_id": run_id,
@@ -206,14 +209,23 @@ def read_category(page: Page) -> tuple[str, int, list[Card], str | None]:
         raise ValueError(f"Cannot verify category product count from heading: {heading!r}")
     total = int(match[2].replace(".", "").replace(",", ""))
     if total:
-        page.locator(".productgrid--item .price--main .money").first.wait_for()
+        page.locator(
+            ".productgrid--item .price--main .money, .productgrid--no-results-title",
+        ).first.wait_for()
     cards: list[Card] = page.locator(".productgrid--item").evaluate_all(EXTRACT_CARDS)
-    if total and not cards:
+    empty_titles = page.locator(".productgrid--no-results-title")
+    explicit_empty = any(
+        " ".join(title.split()).casefold() == "no se encontro coincidencias"
+        for title in empty_titles.all_text_contents()
+    )
+    if total and not cards and not explicit_empty:
         raise ValueError(f"No product cards on {page.url}, despite advertised count {total}")
     next_links = page.locator(".pagination--next a")
     if next_links.count() > 1:
         raise ValueError("Multiple next-page links found")
     next_url = next_links.get_attribute("href") if next_links.count() else None
+    if not cards and explicit_empty and next_url:
+        raise ValueError(f"Empty-results marker with a next-page link on {page.url}")
     return match[1].strip(), total, cards, next_url
 
 
@@ -281,11 +293,23 @@ def collect_category(
         if expected is None:
             expected = total
         category_name = name
+        if total and not cards:
+            warn(
+                f"{name}: explicit empty-results terminal page on {url}, "
+                f"despite advertised count {total}",
+            )
         timestamp = utc_now()
         rows = [
             observation(card, category=name, page_url=url, run_id=run_id, observed_at=timestamp)
             for card in cards
         ]
+        for row in rows:
+            label = row["discount_label"]
+            if label and label.casefold() != "venta" and row["discount_price"] is None:
+                warn(
+                    f"{name}: multi-buy offer {label!r} for {row['product_url']} on {url}; "
+                    "displayed unit price retained, per-unit discount not inferred",
+                )
         identifiers = [row["product_url"] for row in rows]
         if len(set(identifiers)) != len(identifiers) or seen.intersection(identifiers):
             warn(f"{name}: repeated products on {url}; raw page observations retained")
@@ -327,6 +351,7 @@ def run(
     snapshot = SnapshotWriter(directory, basename, list(Observation.__annotations__))
     output_files = snapshot.files
     manifest: dict[str, object] = {
+        "retailer": "farmacorp",
         "run_id": run_id, "started_at": started_at, "status": "running",
         "requested_categories": categories, "all_categories": all_categories,
         "main_categories": main_categories,

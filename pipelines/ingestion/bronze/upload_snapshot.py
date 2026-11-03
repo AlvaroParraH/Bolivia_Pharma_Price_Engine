@@ -1,4 +1,4 @@
-"""Upload a completed retailer snapshot to Azure Blob Storage."""
+"""Upload only the Parquet artifact of a completed snapshot to Azure Blob Storage."""
 
 import argparse
 import json
@@ -9,12 +9,9 @@ from pathlib import Path
 from azure.storage.blob import BlobServiceClient, ContentSettings
 
 RETAILERS = ("farmacorp", "farmacias_chavez", "hipermaxi")
-DATA_FORMATS = ("csv", "jsonl", "parquet")
+DATA_FORMATS = ("parquet",)
 CONTENT_TYPES = {
-    "csv": "text/csv",
-    "jsonl": "application/x-ndjson",
     "parquet": "application/vnd.apache.parquet",
-    "json": "application/json",
 }
 
 
@@ -71,7 +68,6 @@ def upload_snapshot(
         if not path.is_file():
             raise FileNotFoundError(f"Snapshot artifact is missing: {path}")
         files.append((path, data_format))
-    files.append((summary_path, "json"))
 
     connection_string = connection_string or os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
     container_name = container_name or os.environ.get("AZURE_STORAGE_CONTAINER")

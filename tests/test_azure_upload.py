@@ -29,7 +29,7 @@ class SnapshotUploadTests(unittest.TestCase):
         (self.snapshot / "summary.json").write_text(json.dumps(self.summary), encoding="utf-8")
 
     @patch.object(upload_snapshot.BlobServiceClient, "from_connection_string")
-    def test_uploads_artifacts_under_retailer_and_utc_date(self, create_service):
+    def test_uploads_only_parquet_under_retailer_and_utc_date(self, create_service):
         service = MagicMock()
         container = service.get_container_client.return_value
         create_service.return_value = service
@@ -41,10 +41,7 @@ class SnapshotUploadTests(unittest.TestCase):
         expected = [
             f"farmacorp/20261102/{filename}"
             for filename in (
-                self.summary["output_files"]["csv"],
-                self.summary["output_files"]["jsonl"],
                 self.summary["output_files"]["parquet"],
-                "summary.json",
             )
         ]
         self.assertEqual(uploaded, expected)
@@ -52,8 +49,23 @@ class SnapshotUploadTests(unittest.TestCase):
             [call.args[0] for call in container.get_blob_client.call_args_list],
             expected,
         )
-        self.assertEqual(container.get_blob_client.call_args_list[-1].args[0].rsplit("/", 1)[-1], "summary.json")
+        upload_call = container.get_blob_client.return_value.upload_blob.call_args
+        self.assertFalse(upload_call.kwargs["overwrite"])
+        self.assertEqual(
+            upload_call.kwargs["content_settings"].content_type, "application/vnd.apache.parquet",
+        )
         service.close.assert_called_once()
+
+    def test_local_csv_and_jsonl_are_not_required_for_upload(self):
+        for data_format in ("csv", "jsonl"):
+            (self.snapshot / self.summary["output_files"][data_format]).unlink()
+        with patch.object(upload_snapshot.BlobServiceClient, "from_connection_string"):
+            uploaded = upload_snapshot.upload_snapshot(
+                self.snapshot, "farmacorp", "test-connection", "test-container",
+            )
+        self.assertEqual(uploaded, [
+            "farmacorp/20261102/scrape_farmacorp_20261102T183000Z.parquet",
+        ])
 
     def test_date_prefix_comes_from_utc_run_id(self):
         self.summary["run_id"] = "20261231T235959Z_abcdefgh"
@@ -78,7 +90,7 @@ class SnapshotUploadTests(unittest.TestCase):
             self.snapshot, "farmacorp", "test-connection", "test-container",
         )
 
-        self.assertEqual(service.get_container_client.return_value.get_blob_client.call_count, 4)
+        self.assertEqual(service.get_container_client.return_value.get_blob_client.call_count, 1)
 
     def test_failed_or_mismatched_snapshot_is_rejected(self):
         self.summary["status"] = "failed"
@@ -98,7 +110,7 @@ class SnapshotUploadTests(unittest.TestCase):
             )
 
     def test_missing_artifact_fails_before_connecting(self):
-        (self.snapshot / self.summary["output_files"]["csv"]).unlink()
+        (self.snapshot / self.summary["output_files"]["parquet"]).unlink()
         with patch.object(upload_snapshot.BlobServiceClient, "from_connection_string") as create_service:
             with self.assertRaisesRegex(FileNotFoundError, "missing"):
                 upload_snapshot.upload_snapshot(

@@ -66,6 +66,8 @@ are not renamed or converted.
 These are local collection snapshots pending an approved warehouse-loading
 design, not files to commit or store in the ingestion source directory.
 Retain snapshots for historical comparisons. No Snowflake connection is made.
+All three scraper summaries include `retailer` for identity validation by the
+Azure uploader used by the Airflow DAG.
 
 ### Price and product semantics
 
@@ -78,6 +80,11 @@ Retain snapshots for historical comparisons. No Snowflake connection is made.
   `discount_percent` is calculated from displayed prices; rounded site labels
   may differ. The generic `Venta` badge is retained as a raw label but does not
   imply a discounted price without a lower current price.
+  Multi-buy offers such as `3 x 2` are also retained as raw labels. Without a
+  current price below the displayed comparison price, `discount_price` and `discount_percent`
+  remain null; no basket-level savings are converted to a per-unit discount.
+  These offers are logged and recorded in category warnings. Numeric
+  percentage badges without a lower price still fail validation.
 - Product name, displayed brand, canonical product URL, product handle, image
   URL, category, page URL, UTC observation time, and run ID preserve provenance.
   The URL handle is not assumed to be a verified SKU or GTIN.
@@ -98,6 +105,10 @@ Errors, invalid pagination, or missing required fields stop the run; partial
 output is retained with **failed** status. Rerun to produce a new snapshot.
 A completed scrape is not an atomic site-wide snapshot: prices can change
 while it runs, so use per-page observation times.
+An explicit `No se encontro coincidencias` catalog marker with no products or
+next-page link terminates pagination even if the heading retains a nonzero
+category count. This discrepancy is recorded as a warning, not exact coverage.
+Missing products without that marker and empty pages with a next link still fail.
 
 Requests use Chromium's native User-Agent, without a custom override.
 Robots policy checks retain the collector identity `BoliviaPharmaPriceEngine/0.1`.
@@ -181,6 +192,10 @@ uv run --no-env-file --locked python -m pipelines.ingestion.bronze.scrape_hiperm
 ```
 
 Omitting `--category` selects all discovered main-menu categories (14 observed).
+Use repeatable `--exclude-category <slug>` to omit a discovered category.
+Airflow passes `--exclude-category no-comestible`; local runs keep all categories
+unless exclusions are explicitly supplied. Summaries record `excluded_categories`
+and the actual requested scope. Unknown exclusions or an empty remaining scope fail.
 The collector uses an already-loaded main category directly. If navigation
 lands on a subcategory, it selects “Todo” to return to the main category.
 It uses one reused browser/page (headless by default), pauses at least three seconds between
