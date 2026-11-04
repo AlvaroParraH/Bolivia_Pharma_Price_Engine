@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 import pendulum
-from airflow.sdk import DAG, Param
+from airflow.sdk import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 
@@ -16,13 +16,6 @@ with DAG(
     max_active_tasks=1,
     template_searchpath=["/opt/pharma/pipelines/ingestion/bronze/load"],
     default_args={"retries": 0, "execution_timeout": timedelta(hours=12)},
-    params={
-        "allow_missing_chavez_robots": Param(
-            False,
-            type="boolean",
-            description="Explicitly approve Chavez collection if robots.txt is missing/HTML.",
-        ),
-    },
     doc_md=(
         "Collects all main categories, retains local snapshots, and uploads completed snapshots to Azure Blob Storage. "
         "Each successful scraper/upload is followed by its Snowflake Bronze COPY load "
@@ -51,7 +44,7 @@ snapshot_root="$(mktemp -d /opt/airflow/snapshots/farmacorp/airflow-run-XXXXXX)"
         bash_command="""set -euo pipefail
 mkdir -p /opt/airflow/snapshots/farmacias_chavez
 snapshot_root="$(mktemp -d /opt/airflow/snapshots/farmacias_chavez/airflow-run-XXXXXX)"
-/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez {% if params.allow_missing_chavez_robots %}--allow-missing-robots{% endif %} --output "$snapshot_root"
+/opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez --output "$snapshot_root"
 /opt/pharma/.venv/bin/python -u -m pipelines.ingestion.bronze.extract.upload_snapshot --snapshot-root "$snapshot_root" --retailer farmacias_chavez""",
         cwd="/opt/pharma",
         env={"DISPLAY": "browser-desktop:99"},

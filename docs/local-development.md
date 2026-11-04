@@ -48,7 +48,7 @@ Output defaults to `data/farmacorp/`.
 ## Collect Farmacias Chavez prices
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez --allow-missing-robots
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez
 ```
 
 The explicit flag approves proceeding when the site's robots endpoint is

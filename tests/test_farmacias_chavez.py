@@ -85,23 +85,37 @@ class PolicyTests(unittest.TestCase):
         return context
 
     def test_valid_rules(self):
-        policy, warnings = chavez.check_robots(self.context(), False)
+        policy, warnings = chavez.check_robots(self.context())
         self.assertTrue(policy.can_fetch(chavez.USER_AGENT, chavez.BASE_URL + "/ca/test/1"))
         self.assertFalse(policy.can_fetch(chavez.USER_AGENT, chavez.BASE_URL + "/cart"))
         self.assertEqual(warnings, [])
 
-    def test_html_requires_explicit_approval(self):
-        context = self.context(text="<!DOCTYPE html><html>", content_type="text/html")
-        with self.assertRaisesRegex(RuntimeError, "approval"):
-            chavez.check_robots(context, False)
-        policy, warnings = chavez.check_robots(context, True)
-        self.assertEqual(len(warnings), 1)
-        self.assertTrue(policy.can_fetch(chavez.USER_AGENT, chavez.BASE_URL))
+    def test_missing_or_html_rules_proceed_with_warning(self):
+        for context in [
+            self.context(status=404), self.context(status=410),
+            self.context(text="<!DOCTYPE html><html>", content_type="text/html"),
+            self.context(text="<html>", content_type="text/plain"),
+        ]:
+            with self.subTest(status=context.request.get.return_value.status):
+                with self.assertLogs(chavez.LOGGER, level="WARNING") as logs:
+                    policy, warnings = chavez.check_robots(context)
+                self.assertEqual(warnings, [
+                    "No usable robots.txt; proceeding with public-page collection",
+                ])
+                self.assertIn(warnings[0], logs.output[0])
+                self.assertTrue(policy.can_fetch(chavez.USER_AGENT, chavez.BASE_URL))
+
+    def test_explicit_disallow_still_blocks_navigation(self):
+        policy, _ = chavez.check_robots(self.context(text="User-agent: *\nDisallow: /"))
+        page = MagicMock()
+        with self.assertRaisesRegex(ValueError, "robots.txt disallows"):
+            chavez.navigate(page, chavez.BASE_URL, policy, 0)
+        page.goto.assert_not_called()
 
     def test_server_errors_are_not_missing_rules(self):
         for status in [403, 429, 500]:
             with self.subTest(status=status), self.assertRaises(RuntimeError):
-                chavez.check_robots(self.context(status=status), True)
+                chavez.check_robots(self.context(status=status))
 
 
 class LocalBrowserTests(unittest.TestCase):
@@ -224,9 +238,9 @@ class SnapshotTests(unittest.TestCase):
                 page.locator.return_value.get_attribute.return_value = "true"
                 if failures == 3:
                     with self.assertRaises(PlaywrightTimeoutError):
-                        chavez.run(Path(output), ["Test", "Other"], 3, False)
+                        chavez.run(Path(output), ["Test", "Other"], 3)
                 else:
-                    chavez.run(Path(output), ["Test"], 3, False)
+                    chavez.run(Path(output), ["Test"], 3)
                 summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
                 attempts = min(failures + 1, 3)
                 self.assertEqual(summary["category_timeout_retries"], 2)
@@ -264,7 +278,7 @@ class SnapshotTests(unittest.TestCase):
             chavez, "collect_category", side_effect=ValueError("Invalid product"),
         ) as collect, patch("pipelines.ingestion.bronze.extract.category_retries.time.sleep") as pause:
             with self.assertRaisesRegex(ValueError, "Invalid product"):
-                chavez.run(Path(output), None, 3, False)
+                chavez.run(Path(output), None, 3)
             collect.assert_called_once()
             pause.assert_not_called()
             summary = json.loads(next(Path(output).glob("*/summary.json")).read_text())
@@ -294,7 +308,7 @@ class SnapshotTests(unittest.TestCase):
             chavez, "sync_playwright",
         ) as playwright, patch.object(chavez, "check_robots", side_effect=RuntimeError("policy error")):
             with self.assertRaisesRegex(RuntimeError, "policy error"):
-                chavez.run(Path(output), None, 0, False)
+                chavez.run(Path(output), None, 0)
             playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.assert_called_once_with(
                 locale="es-BO", timezone_id="America/La_Paz",
             )

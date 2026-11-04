@@ -47,15 +47,12 @@ class ScraperDagTests(unittest.TestCase):
         self.assertIn("--interactive", self.dag.get_task("scrape_hipermaxi").bash_command)
         self.assertNotIn("--exclude-category", self.dag.get_task("scrape_hipermaxi").bash_command)
 
-    def test_chavez_requires_explicit_approval(self) -> None:
-        for approved in (False, True):
-            task = self.dag.get_task("scrape_farmacias_chavez")
-            rendered = task.render_template(
-                task.bash_command,
-                {"params": {"allow_missing_chavez_robots": approved}},
-            )
-            self.assertEqual("--allow-missing-robots" in rendered, approved)
-        self.assertFalse(self.dag.params["allow_missing_chavez_robots"])
+    def test_chavez_needs_no_robots_approval_parameter(self) -> None:
+        task = self.dag.get_task("scrape_farmacias_chavez")
+        rendered = task.render_template(task.bash_command, {})
+        self.assertNotIn("--allow-missing-robots", rendered)
+        self.assertNotIn("allow_missing_chavez_robots", self.dag.params)
+        self.assertIn("scrape_farmacias_chavez --output", rendered)
 
     def test_scraper_entrypoints(self) -> None:
         for retailer in ("farmacorp", "farmacias_chavez", "hipermaxi"):

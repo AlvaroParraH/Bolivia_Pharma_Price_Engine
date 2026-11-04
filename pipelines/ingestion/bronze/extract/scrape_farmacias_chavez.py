@@ -99,7 +99,7 @@ def observation(
     }
 
 
-def check_robots(context: BrowserContext, allow_missing: bool) -> tuple[RobotFileParser, list[str]]:
+def check_robots(context: BrowserContext) -> tuple[RobotFileParser, list[str]]:
     response = context.request.get(BASE_URL + "/robots.txt")
     text = response.text()
     warnings = []
@@ -109,9 +109,7 @@ def check_robots(context: BrowserContext, allow_missing: bool) -> tuple[RobotFil
             or "<html" in text.lower() or "<!doctype" in text.lower()
         )
     ):
-        if not allow_missing:
-            raise RuntimeError("No usable robots.txt; explicit --allow-missing-robots approval required")
-        warnings.append("No usable robots.txt; public-page collection explicitly approved")
+        warnings.append("No usable robots.txt; proceeding with public-page collection")
         LOGGER.warning("%s", warnings[-1])
         text = "User-agent: *\nAllow: /"
     elif response.status != 200:
@@ -253,7 +251,7 @@ def collect_category(
             "reported_totals": totals, "warnings": warnings}
 
 
-def run(output: Path, categories: list[str] | None, delay: float, allow_missing_robots: bool) -> Path:
+def run(output: Path, categories: list[str] | None, delay: float) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = timestamp + "_" + uuid4().hex[:8]
     directory = output / run_id
@@ -296,7 +294,7 @@ def run(output: Path, categories: list[str] | None, delay: float, allow_missing_
                 context.set_default_navigation_timeout(60_000)
                 context.route("**/*", lambda route: route.abort() if route.request.resource_type in
                               {"image", "media", "font"} else route.continue_())
-                policy, warnings = check_robots(context, allow_missing_robots)
+                policy, warnings = check_robots(context)
                 manifest["warnings"] = warnings
                 context.route(
                     "**/*",
@@ -351,12 +349,11 @@ def main() -> None:
     parser.add_argument("--category", action="append", help="Exact main menu name; repeat, defaults to all main categories")
     parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[4] / "data" / "farmacias_chavez")
     parser.add_argument("--delay", type=float, default=3)
-    parser.add_argument("--allow-missing-robots", action="store_true", help="Explicitly approve public crawling when robots.txt is missing/HTML")
     args = parser.parse_args()
     if not 3 <= args.delay < float("inf"):
         parser.error("--delay must be finite and at least three seconds")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    run(args.output, args.category, args.delay, args.allow_missing_robots)
+    run(args.output, args.category, args.delay)
 
 
 if __name__ == "__main__":

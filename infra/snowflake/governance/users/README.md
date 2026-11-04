@@ -20,13 +20,15 @@ with the following connection settings in the same section:
 The original `SNOWFLAKE_*` settings remain unchanged. The password is the
 temporary test password; a password change is required on first login.
 Update the local password setting after changing it in Snowflake. These
-Airflow-specific variables are not automatically consumed by Compose or
-Airflow's saved connection.
+Airflow-specific variables are mapped by Compose to the scheduler's
+`SNOWFLAKE_*` environment. Updating them requires scheduler recreation and a
+separate update of Airflow's saved `snowflake_pharma` connection.
 MFA enrollment or challenges remain subject to Snowflake and account policies.
 Do not disable or bypass those policies.
 
-This manual test does not configure unattended pipeline authentication or
-update Airflow's saved connection. For automation, use a `SERVICE` identity with
+The password/MFA test does not prove unattended pipeline authentication works.
+Airflow's saved connection may use these credentials, but password-change and
+MFA requirements can prevent unattended login. For automation, use a `SERVICE` identity with
 an approved supported method, such as key-pair authentication or OAuth;
 Snowflake `SERVICE` users cannot authenticate with passwords.
 
@@ -48,7 +50,8 @@ Snowflake `SERVICE` users cannot authenticate with passwords.
    and inherited by `SYSADMIN`; no administrative role is assigned to the user.
 6. Configure authentication securely outside tracked SQL. For the current
    manual test, log in to Snowsight, change the temporary password, and complete
-   any required MFA enrollment. Do not copy this test login into Airflow.
+   any required MFA enrollment. Verify noninteractive login separately before
+   triggering Airflow loads.
    Setting `DEFAULT_ROLE` alone does not grant role membership.
 
 Verify the assignments using metadata statements:

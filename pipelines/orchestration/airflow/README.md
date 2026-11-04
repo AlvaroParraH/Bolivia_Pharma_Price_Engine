@@ -10,6 +10,13 @@ Allocate at least 4 GB of Docker memory (8 GB recommended).
 
 From the repository root:
 
+Before the first startup, generate a Fernet key with
+`docker run --rm --entrypoint python apache/airflow:3.3.2 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`
+and save it as `AIRFLOW_FERNET_KEY` in the ignored root `.env`.
+Keep this key stable and private: all Airflow services use it to encrypt and
+decrypt saved connection credentials. Back it up with the metadata database;
+do not replace it without Airflow's supported key-rotation procedure.
+
 ```bash
 docker compose --env-file .env -f pipelines/orchestration/airflow/compose.yaml up -d --build --wait --wait-timeout 300
 docker compose --env-file .env -f pipelines/orchestration/airflow/compose.yaml ps
@@ -22,7 +29,7 @@ are published only on loopback; PostgreSQL is not exposed to the host.
 The init service migrates the metadata database and creates the local user.
 The root `.env` is used for Compose interpolation; it is not mounted. Only
 `AZURE_STORAGE_CONNECTION_STRING`, `AZURE_STORAGE_CONTAINER`, and the optional
-`AIRFLOW_CONN_SNOWFLAKE_PHARMA` connection and individual `SNOWFLAKE_*` settings are passed to
+`AIRFLOW_CONN_SNOWFLAKE_PHARMA` connection and individual `AIRFLOW_SNOWFLAKE_*` settings are passed to
 the scheduler, where scraper tasks run. Keep `.env` out of Git and do not share
 these local development credentials.
 
@@ -80,9 +87,10 @@ Each successful scraper/upload task is followed by `load_<retailer>`, which
 uses `SQLExecuteQueryOperator` with the Snowflake provider and connection
 `snowflake_pharma`. A failed collection/upload prevents only its own load;
 other retailer chains remain independent. SQL errors fail the load task.
-In the Airflow UI, enable it and trigger a run. Explicitly select
-`allow_missing_chavez_robots` if you approve collection despite missing/HTML
-robots rules; otherwise the Chavez scraper stops if usable rules are absent.
+In the Airflow UI, enable it and trigger a run. Chavez collection proceeds with
+a logged snapshot warning if robots rules are missing or return HTML; no
+approval parameter is required. Explicit disallow rules and other HTTP errors
+still stop collection.
 
 Before triggering, open http://localhost:6080/vnc.html and click **Connect**.
 The Hipermaxi task includes all discovered main categories, including
@@ -119,10 +127,13 @@ No automatic cleanup is configured.
 
 ## Configure Snowflake loading
 
-The scheduler also receives `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`,
-`SNOWFLAKE_PASSWORD`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`,
-`SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`, and `SNOWFLAKE_AUTHENTICATOR` from
-the ignored root `.env`. These individual settings are inputs for connection
+Compose maps `AIRFLOW_SNOWFLAKE_ACCOUNT`, `AIRFLOW_SNOWFLAKE_USER`,
+`AIRFLOW_SNOWFLAKE_PASSWORD`, `AIRFLOW_SNOWFLAKE_DATABASE`, `AIRFLOW_SNOWFLAKE_SCHEMA`,
+`AIRFLOW_SNOWFLAKE_WAREHOUSE`, `AIRFLOW_SNOWFLAKE_ROLE`, and
+`AIRFLOW_SNOWFLAKE_AUTHENTICATOR` from the ignored root `.env` to the scheduler's
+corresponding `SNOWFLAKE_*` environment variables. The general `SNOWFLAKE_*`
+credentials in `.env` are not passed to the scheduler.
+These individual settings are inputs for connection
 administration, not an automatic Airflow connection. The `snowflake_pharma`
 connection must be saved in Airflow metadata or supplied through the connection
 environment variable below. Updating individual settings alone does not update
@@ -164,8 +175,9 @@ AIRFLOW_CONN_SNOWFLAKE_PHARMA='{"conn_type":"snowflake","login":"<service-user>"
 Use the provider's key-pair fields in `extra` instead when applicable; never
 commit the rendered connection. Recreate the scheduler after changing this
 environment setting, only when no tasks are running or interruption is approved.
-For shared/production use, configure a stable Fernet key
-and your secret-management policy separately; the local Compose setup is not
+Compose requires the shared `AIRFLOW_FERNET_KEY` described above.
+For shared/production use, configure your secret-management policy separately;
+the local Compose setup is not
 a production credential store.
 
 The load SQL files are packaged at `/opt/pharma/pipelines/ingestion/bronze/load`;

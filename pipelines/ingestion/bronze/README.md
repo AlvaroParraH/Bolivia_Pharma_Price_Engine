@@ -155,18 +155,19 @@ categories. Nested subcategories are not independently crawled. Repeat products
 across categories are retained with their category names for filtering.
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez --allow-missing-robots
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez
 ```
 
 For a bounded collection, specify exact menu labels:
 
 ```bash
-uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez --category "Ofertas Del Mes" --allow-missing-robots
+uv run --no-env-file --locked python -m pipelines.ingestion.bronze.extract.scrape_farmacias_chavez --category "Ofertas Del Mes"
 ```
 
 The site currently returns an HTML app page for `robots.txt`, not usable
-crawling rules. `--allow-missing-robots` records explicit approval to proceed
-despite this uncertainty. Without that approval the collector stops. HTTP
+crawling rules. Missing rules (HTTP 404/410) or an HTML response produce a
+warning in the logs and snapshot summary; collection proceeds without an extra
+flag. Explicit robots disallow rules still block collection. HTTP
 403/429/server errors are not treated as missing rules. Check the site's
 [terms](https://www.farmaciaschavez.com.bo/TermsAndConditions) before expanding
 or republishing data; public visibility is not a license to reuse protected
