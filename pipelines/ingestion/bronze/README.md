@@ -4,9 +4,10 @@
 
 ## Code layout
 
-- `extract/`: retailer scrapers, category retries, and local snapshot writing.
-- `load/`: publication/loading code, currently `upload_snapshot.py` for Azure.
-  Azure-to-Snowflake loading is not implemented yet.
+- `extract/`: retailer scrapers, category retries, local snapshot writing, and
+  `upload_snapshot.py` for Azure publication.
+- `load/`: retailer SQL loads from Azure stages into Snowflake Bronze tables.
+  See [loading prerequisites and replay behavior](load/README.md); not deployed.
 
 Run modules from the project root using the paths below. Default local output
 remains under the root `data/` directory. No `scrapers/` or `apis/` subfolders
@@ -305,9 +306,10 @@ or prove future live coverage. Offline browser fixtures test the manual-return
 workflow; one live pilot also returned from validation before a separate
 category-readiness failure. The later full collection completed successfully.
 
-## Future Snowflake loading
+## Snowflake loading
 
-Implement Azure-to-Snowflake Bronze loading under `load/` after agreeing the
-approved authentication, data classification, incremental/replay semantics,
-error handling, and raw-object ownership. Raw data does not belong in this
-source-code directory.
+The [load guide](load/README.md) documents the reused storage integration,
+retailer stages, typed Bronze tables, and SQL COPY statements. Loading is not
+wired into Airflow or executed by this change. Review the target, live object
+definitions, privileges, and stage paths before applying SQL. Raw data does not
+belong in this source-code directory.

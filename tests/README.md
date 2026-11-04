@@ -46,8 +46,15 @@ uv run --no-env-file --locked python -m unittest discover -s tests -p 'test_*.py
 ```
 
 Entrypoint checks invoke `--help` for the relocated `extract/` scrapers and
-`load/` Azure uploader without network access. Mocked CLI calls verify that
+Azure uploader under `extract/` without network access. Mocked CLI calls verify that
 default snapshots still go to the project's root `data/<retailer>/` directory.
+
+Snowflake load contract tests compare every scraper field and SQL cast with
+its Bronze table definition, check provenance columns and safe COPY options,
+and match mocked upload paths against retailer stages and filename patterns.
+Temporary Parquet fixtures retain duplicate rows and nulls. These offline checks
+do not connect to Snowflake or validate live privileges, object state, or SQL
+acceptance. SQLFluff validation is blocked until that tool is available.
 
 Hipermaxi tests cover dot-decimal prices, discounts, branch-restricted URLs,
 DOM extraction, infinite-scroll completion signals, missing-sentinel failures,

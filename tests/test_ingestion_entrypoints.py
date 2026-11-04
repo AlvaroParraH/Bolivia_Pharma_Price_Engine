@@ -20,7 +20,7 @@ class EntrypointTests(unittest.TestCase):
             "extract.scrape_farmacorp",
             "extract.scrape_farmacias_chavez",
             "extract.scrape_hipermaxi",
-            "load.upload_snapshot",
+            "extract.upload_snapshot",
         ):
             with self.subTest(module=module):
                 result = subprocess.run(

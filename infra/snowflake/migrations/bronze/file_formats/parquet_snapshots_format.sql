@@ -1,0 +1,4 @@
+CREATE FILE FORMAT
+BOLIVIA_PHARMA_PRICE_ENGINE.BRONZE.PARQUET_SNAPSHOTS_FORMAT
+    TYPE = PARQUET
+    COMMENT = 'Shared Parquet parsing for pharmacy scraper snapshots.';

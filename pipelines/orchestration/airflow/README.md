@@ -53,7 +53,7 @@ Do not put credentials or rendered connection profiles in this repository.
 ## Run the three scrapers
 
 Scraper modules live under `pipelines.ingestion.bronze.extract`; Azure publication
-uses `pipelines.ingestion.bronze.load.upload_snapshot`. After updating module
+uses `pipelines.ingestion.bronze.extract.upload_snapshot`. After updating module
 paths, rebuild the image and recreate the scheduler before running the updated
 DAG: ingestion code is copied into the image, while DAGs are bind-mounted.
 Do not recreate the scheduler during active collection without approval.

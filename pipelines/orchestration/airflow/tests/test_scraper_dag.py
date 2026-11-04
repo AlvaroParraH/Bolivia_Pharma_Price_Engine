@@ -25,7 +25,7 @@ class ScraperDagTests(unittest.TestCase):
                 task.bash_command,
             )
             self.assertIn(
-                "-m pipelines.ingestion.bronze.load.upload_snapshot ",
+                "-m pipelines.ingestion.bronze.extract.upload_snapshot ",
                 task.bash_command,
             )
             self.assertEqual(task.retries, 0)
@@ -61,7 +61,7 @@ class ScraperDagTests(unittest.TestCase):
         result = subprocess.run(
             [
                 "/opt/pharma/.venv/bin/python", "-m",
-                "pipelines.ingestion.bronze.load.upload_snapshot", "--help",
+                "pipelines.ingestion.bronze.extract.upload_snapshot", "--help",
             ],
             cwd="/opt/pharma", capture_output=True, text=True, timeout=30,
         )

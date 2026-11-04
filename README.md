@@ -34,7 +34,8 @@ Record observation dates and source provenance; do not bypass access controls.
 ## Project layout
 
 - `pipelines/ingestion/bronze/` - `extract/` for source collection and local
-  snapshots; `load/` for publishing/loading (currently Azure uploads).
+  snapshots and Azure publication; `load/` contains reviewed-before-use Snowflake
+  COPY scripts (not yet deployed or wired into Airflow).
 - `pipelines/dbt/` - Silver transformations and Gold marts.
 - `pipelines/orchestration/airflow/dags/` - orchestration.
 - `tests/` - local Python test guidance.

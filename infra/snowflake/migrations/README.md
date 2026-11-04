@@ -23,6 +23,12 @@ execution order has been selected. Keep migration filenames consistently
 ordered when a runner is chosen, and do not assume it recursively discovers
 these folders.
 
+Bronze table, stage, and shared `file_formats/` definitions use the existing
+`AZURE_BOLIVIA_PHARMA_BRONZE` account integration; they do not create or alter it.
+See the [load guide](../../../pipelines/ingestion/bronze/load/README.md) for
+deployment prerequisites, Azure paths, and load/replay boundaries.
+Local SQL files do not establish the current deployment state.
+
 - `bronze/` — confirmed database schema.
 - `silver/` — planned schema; not yet confirmed to exist.
 - `gold/` — planned schema; not yet confirmed to exist.

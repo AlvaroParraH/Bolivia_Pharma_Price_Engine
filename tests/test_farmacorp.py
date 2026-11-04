@@ -9,7 +9,7 @@ import pyarrow.parquet as pq
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 from pipelines.ingestion.bronze.extract import scrape_farmacorp as farmacorp
-from pipelines.ingestion.bronze.load.upload_snapshot import upload_snapshot
+from pipelines.ingestion.bronze.extract.upload_snapshot import upload_snapshot
 
 
 def card(**changes) -> farmacorp.Card:
@@ -589,7 +589,7 @@ class OutputTests(unittest.TestCase):
             self.assertEqual(json_rows, expected)
             self.assertEqual(table.column_names, list(farmacorp.Observation.__annotations__))
             self.assertEqual(summary["observations"], 2)
-            with patch("pipelines.ingestion.bronze.load.upload_snapshot.BlobServiceClient.from_connection_string"):
+            with patch("pipelines.ingestion.bronze.extract.upload_snapshot.BlobServiceClient.from_connection_string"):
                 uploaded = upload_snapshot(directory, "farmacorp", "test-connection", "test-container")
             self.assertEqual(len(uploaded), 1)
             self.assertTrue(uploaded[0].endswith(".parquet"))
