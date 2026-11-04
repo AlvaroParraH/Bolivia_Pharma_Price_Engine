@@ -4,6 +4,7 @@ Organize reviewed access-administration SQL separately from
 [object migrations](../migrations/README.md).
 
 - [roles/](roles/README.md): account and database role definitions.
+- [users/](users/README.md): service identity definitions and provisioning order.
 - [grants/](grants/README.md): role hierarchy and approved access privileges.
 - [ownership/](ownership/README.md): explicit object ownership assignments
   and transfers.

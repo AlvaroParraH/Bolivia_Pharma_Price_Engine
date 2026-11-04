@@ -15,6 +15,7 @@ Nothing has been executed in Snowflake.
 
 | Script | Access |
 |---|---|
+| [pharma_airflow_dev.sql](pharma_airflow_dev.sql) | Assigns the ingestion role to the development user and makes it inherited by SYSADMIN |
 | [pharma_dev_deployer.sql](pharma_dev_deployer.sql) | Database/schema usage, schema creation, Bronze table/stage creation, Silver/Gold table/view creation, and Azure integration usage |
 | [pharma_dev_ingestor.sql](pharma_dev_ingestor.sql) | Warehouse and Bronze parent usage; usage on the three retailer stages; insert/select on the three scraping tables |
 | [pharma_dev_dbt.sql](pharma_dev_dbt.sql) | Warehouse and parent usage; select on the three Bronze tables; Silver/Gold table/view creation |
@@ -52,7 +53,9 @@ Nothing has been executed in Snowflake.
 Before execution, confirm the account/environment and authorized grant
 administrator. Use object owners or an approved role with `MANAGE GRANTS`,
 respecting managed access schema rules. The scripts do not select a session
-role, assign users, or establish role inheritance.
+role. User assignments and role inheritance are explicit in
+`pharma_airflow_dev.sql`; review its [user prerequisites](../users/README.md)
+before execution.
 
 Grants are not an access revocation policy: existing and inherited privileges
 remain unchanged and must be reviewed separately. Statements commit

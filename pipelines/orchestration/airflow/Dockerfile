@@ -19,4 +19,9 @@ RUN uv sync --locked --no-dev --no-install-project \
 COPY pipelines/ingestion /opt/pharma/pipelines/ingestion
 COPY pipelines/orchestration/airflow/browser-desktop.sh /opt/pharma/browser-desktop.sh
 USER airflow
+RUN uv export --no-cache --offline --locked --only-group airflow --no-hashes \
+        --output-file /tmp/airflow-requirements.txt \
+    && pip install --no-cache-dir "apache-airflow==3.3.2" -r /tmp/airflow-requirements.txt \
+    && pip check \
+    && rm /tmp/airflow-requirements.txt
 WORKDIR /opt/airflow

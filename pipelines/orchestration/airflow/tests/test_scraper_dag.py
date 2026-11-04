@@ -7,7 +7,13 @@ from pathlib import Path
 
 class ScraperDagTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.dag = runpy.run_path("/opt/airflow/dags/scrape_pharmacies.py")["dag"]
+        dag_file = (
+            Path("/opt/airflow/dags/scrape_pharmacies.py")
+            if Path("/opt/pharma").is_dir()
+            else Path(__file__).resolve().parents[4]
+            / "pipelines/orchestration/airflow/dags/scrape_pharmacies.py"
+        )
+        self.dag = runpy.run_path(str(dag_file))["dag"]
 
     def test_collection_contract(self) -> None:
         self.assertEqual(self.dag.dag_id, "scrape_pharmacy_prices")
@@ -17,9 +23,13 @@ class ScraperDagTests(unittest.TestCase):
         self.assertEqual(self.dag.max_active_tasks, 1)
         self.assertEqual(
             set(self.dag.task_ids),
-            {"scrape_farmacorp", "scrape_farmacias_chavez", "scrape_hipermaxi"},
+            {
+                f"{operation}_{retailer}"
+                for operation in ("scrape", "load")
+                for retailer in ("farmacorp", "farmacias_chavez", "hipermaxi")
+            },
         )
-        for task in self.dag.tasks:
+        for task in (task for task in self.dag.tasks if task.task_id.startswith("scrape_")):
             self.assertIn(
                 f"-m pipelines.ingestion.bronze.extract.{task.task_id} ",
                 task.bash_command,
@@ -30,7 +40,7 @@ class ScraperDagTests(unittest.TestCase):
             )
             self.assertEqual(task.retries, 0)
             self.assertFalse(task.upstream_task_ids)
-            self.assertFalse(task.downstream_task_ids)
+            self.assertEqual(task.downstream_task_ids, {task.task_id.replace("scrape_", "load_", 1)})
             self.assertFalse(task.do_xcom_push)
             self.assertIn("--output \"$snapshot_root\"", task.bash_command)
         self.assertIn("--main-categories", self.dag.get_task("scrape_farmacorp").bash_command)
@@ -69,7 +79,7 @@ class ScraperDagTests(unittest.TestCase):
         self.assertIn("--snapshot-root", result.stdout)
 
     def test_each_collection_uploads_after_scraping(self) -> None:
-        for task in self.dag.tasks:
+        for task in (task for task in self.dag.tasks if task.task_id.startswith("scrape_")):
             scrape_index = task.bash_command.index("scrape_")
             upload_index = task.bash_command.index("upload_snapshot")
             self.assertLess(scrape_index, upload_index)

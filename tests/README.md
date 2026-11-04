@@ -56,6 +56,14 @@ Temporary Parquet fixtures retain duplicate rows and nulls. These offline checks
 do not connect to Snowflake or validate live privileges, object state, or SQL
 acceptance. SQLFluff validation is blocked until that tool is available.
 
+Airflow's separate runtime tests live under
+`pipelines/orchestration/airflow/tests/`. SQL-operator tests use the locked
+`airflow` dependency group, render each SQL file, verify retailer dependencies
+and success-only trigger rules, dispatch to mocked Snowflake hooks, and ensure
+query errors propagate. DAG parsing does not resolve credentials or connect.
+See the [Airflow guide](../pipelines/orchestration/airflow/README.md) for container
+commands; these tests never execute live COPY statements.
+
 Hipermaxi tests cover dot-decimal prices, discounts, branch-restricted URLs,
 DOM extraction, infinite-scroll completion signals, missing-sentinel failures,
 bot-validation stops, robots rule precedence, failed manifests and equivalent

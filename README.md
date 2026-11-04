@@ -50,10 +50,11 @@ Snowflake Bronze -> dbt Silver -> dbt Gold
   observation timestamps, and raw displayed values. Bounded category timeout
   retries retain partial observations, including duplicates.
 - **Orchestration:** a manual Airflow DAG runs the three retailer collections
-  independently, one at a time, and uploads completed Parquet snapshots.
+  in independent retailer chains, one task at a time, uploads completed Parquet
+  snapshots, and then loads the corresponding Snowflake Bronze table.
 - **Bronze:** SQL COPY scripts map staged Parquet files into retailer-specific
-  Snowflake tables with file provenance. Loading is not yet wired into Airflow;
-  the SQL definitions do not establish live deployment state.
+  Snowflake tables with file provenance. Airflow load tasks use an explicitly
+  configured Snowflake connection; SQL definitions do not establish live deployment state.
 - **Silver (planned):** dbt models will normalize types, validate data, and
   deduplicate observations at an agreed grain while preserving price history.
 - **Gold (planned):** business-facing models will support monthly price changes,
@@ -66,7 +67,7 @@ Snowflake Bronze -> dbt Silver -> dbt Gold
 
 - `pipelines/ingestion/bronze/` - `extract/` for source collection and local
   snapshots and Azure publication; `load/` contains reviewed-before-use Snowflake
-  COPY scripts (not yet deployed or wired into Airflow).
+  COPY scripts executed by Airflow after successful uploads.
 - `pipelines/dbt/` - Silver transformations and Gold marts.
 - `pipelines/orchestration/airflow/dags/` - orchestration.
 - `infra/snowflake/` - governance and warehouse object definitions.

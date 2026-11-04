@@ -1,10 +1,11 @@
-"""Manually collect pharmacy catalogs and upload completed snapshots to Azure."""
+"""Collect pharmacy catalogs, publish Parquet, and load Snowflake Bronze."""
 
 from datetime import timedelta
 
 import pendulum
 from airflow.sdk import DAG, Param
 from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 
 with DAG(
     dag_id="scrape_pharmacy_prices",
@@ -13,6 +14,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     max_active_tasks=1,
+    template_searchpath=["/opt/pharma/pipelines/ingestion/bronze/load"],
     default_args={"retries": 0, "execution_timeout": timedelta(hours=12)},
     params={
         "allow_missing_chavez_robots": Param(
@@ -23,9 +25,11 @@ with DAG(
     },
     doc_md=(
         "Collects all main categories, retains local snapshots, and uploads completed snapshots to Azure Blob Storage. "
-        "Tasks run one at a time but independently, so one failure does not skip other retailers. "
+        "Each successful scraper/upload is followed by its Snowflake Bronze COPY load "
+        "using connection snowflake_pharma. Retailer chains are independent and tasks run one at a time. "
         "Open http://localhost:6080/vnc.html for Hipermaxi manual validation (300 seconds "
-        "per challenge). No challenge bypass, automatic retries, or Snowflake calls."
+        "per challenge). No challenge bypass or automatic task retries. "
+        "COPY loads matching date folders, skips known files, and preserves source blobs."
     ),
     tags=["bronze", "scraping", "manual"],
 ) as dag:
@@ -67,3 +71,20 @@ snapshot_root="$(mktemp -d /opt/airflow/snapshots/hipermaxi/airflow-run-XXXXXX)"
         append_env=True,
         do_xcom_push=False,
     )
+
+    for retailer, scrape_task in (
+        ("farmacorp", scrape_farmacorp),
+        ("farmacias_chavez", scrape_farmacias_chavez),
+        ("hipermaxi", scrape_hipermaxi),
+    ):
+        load_task = SQLExecuteQueryOperator(
+            task_id=f"load_{retailer}",
+            conn_id="snowflake_pharma",
+            sql=f"load_{retailer}.sql",
+            autocommit=True,
+            split_statements=False,
+            do_xcom_push=False,
+            handler=None,
+            execution_timeout=timedelta(hours=1),
+        )
+        scrape_task >> load_task

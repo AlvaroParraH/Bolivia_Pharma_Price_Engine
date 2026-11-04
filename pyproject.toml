@@ -8,3 +8,15 @@ dependencies = [
     "playwright>=1.64.1",
     "pyarrow>=26.0.0",
 ]
+
+[dependency-groups]
+airflow = [
+    "apache-airflow[fab,postgres]==3.3.2",
+    "apache-airflow-providers-snowflake==6.20.0",
+    "tenacity<9.2",
+    "websockets<17",
+    "importlib-metadata<9",
+    "filelock<4",
+    "botocore>=1.43.66,<1.43.76",
+    "opentelemetry-sdk~=1.44.0",
+]

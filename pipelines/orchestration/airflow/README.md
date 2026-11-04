@@ -21,16 +21,24 @@ suitable for production or shared hosting. The API server and browser desktop
 are published only on loopback; PostgreSQL is not exposed to the host.
 The init service migrates the metadata database and creates the local user.
 The root `.env` is used for Compose interpolation; it is not mounted. Only
-`AZURE_STORAGE_CONNECTION_STRING` and `AZURE_STORAGE_CONTAINER` are passed to
+`AZURE_STORAGE_CONNECTION_STRING`, `AZURE_STORAGE_CONTAINER`, and the optional
+`AIRFLOW_CONN_SNOWFLAKE_PHARMA` connection and individual `SNOWFLAKE_*` settings are passed to
 the scheduler, where scraper tasks run. Keep `.env` out of Git and do not share
 these local development credentials.
 
 The existing DAG directory is mounted read-only. DAGs start paused, examples
 are disabled, and the scaffold has no schedule and only an empty task.
-No scraping, upload, or Snowflake jobs run automatically. The custom image
+No jobs run until the manual DAG is triggered. Once triggered, successful
+scraper/uploads automatically unlock their corresponding Snowflake loads. The custom image
 installs scraper dependencies from the root uv lock into an isolated environment,
 plus Chromium and a local browser desktop. Rebuild after source or lock changes.
 Airflow runtime dependencies stay isolated from the root uv environment.
+The `airflow` dependency group in the root manifest and lock pins Airflow,
+its FAB/PostgreSQL support, and the Snowflake provider. The Docker build exports
+only that group into Airflow's Python environment; scraper dependencies remain
+in `/opt/pharma/.venv`. Update the lock with `uv lock` after manifest changes.
+The group also constrains shared libraries to remain compatible with packages
+preinstalled in the pinned Airflow image; the build runs `pip check`.
 
 ```bash
 # Diagnose services
@@ -58,8 +66,9 @@ paths, rebuild the image and recreate the scheduler before running the updated
 DAG: ingestion code is copied into the image, while DAGs are bind-mounted.
 Do not recreate the scheduler during active collection without approval.
 
-The `scrape_pharmacy_prices` DAG has three independent tasks, limited to one
-running task and one active DAG run at a time. Each task collects all main
+The `scrape_pharmacy_prices` DAG has three independent retailer chains (six
+tasks), limited to one running task and one active DAG run at a time.
+Each scraper task collects all main
 categories for its retailer, then uploads only the Parquet file
 to the configured Azure Blob Storage container. The blob layout is
 `<retailer>/<date>/<filename>`, with `date` taken from the snapshot's UTC run
@@ -67,6 +76,10 @@ timestamp and formatted `YYYYMMDD`. CSV, JSONL, and the summary stay local.
 The local summary must identify a completed snapshot before upload.
 Failed scraper runs are not uploaded. Upload errors fail the
 task while retaining its local snapshot. It is manual-only and starts paused.
+Each successful scraper/upload task is followed by `load_<retailer>`, which
+uses `SQLExecuteQueryOperator` with the Snowflake provider and connection
+`snowflake_pharma`. A failed collection/upload prevents only its own load;
+other retailer chains remain independent. SQL errors fail the load task.
 In the Airflow UI, enable it and trigger a run. Explicitly select
 `allow_missing_chavez_robots` if you approve collection despite missing/HTML
 robots rules; otherwise the Chavez scraper stops if usable rules are absent.
@@ -102,11 +115,85 @@ docker compose --env-file .env -f pipelines/orchestration/airflow/compose.yaml c
 Snapshots survive `down` but not deliberate volume deletion. Only the finalized
 Parquet blob is published; there is no remote summary completion marker.
 Existing CSV, JSONL, or summary blobs from earlier uploads are not deleted.
-No automatic cleanup or Snowflake load is configured.
+No automatic cleanup is configured.
+
+## Configure Snowflake loading
+
+The scheduler also receives `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`,
+`SNOWFLAKE_PASSWORD`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`,
+`SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`, and `SNOWFLAKE_AUTHENTICATOR` from
+the ignored root `.env`. These individual settings are inputs for connection
+administration, not an automatic Airflow connection. The `snowflake_pharma`
+connection must be saved in Airflow metadata or supplied through the connection
+environment variable below. Updating individual settings alone does not update
+an already saved connection. Never use `ACCOUNTADMIN` as the loading role.
+
+Before triggering the DAG, create an Airflow connection in **Admin > Connections**:
+
+- Connection ID: `snowflake_pharma`
+- Connection type: `Snowflake`
+- Account: approved Snowflake account identifier
+- Login and authentication: an approved service identity, preferably key-pair
+  authentication or your organization's noninteractive authentication method
+- Database: `BOLIVIA_PHARMA_PRICE_ENGINE`
+- Schema: `BRONZE`
+- Warehouse and role: explicitly approved loading warehouse and least-privileged
+  ingestion role (the governance SQL proposes `COMPUTE_WH` and
+  `PHARMA_DEV_INGESTOR`; confirm their deployment and access before using them)
+
+Use the connection's Extra fields for `account`, `database`, `warehouse`, `role`,
+and any required authentication settings. For key-pair authentication the provider
+supports `private_key_content` or `private_key_file` (not both); a file must be
+securely mounted and readable by the actual task runtime. Enter secrets only
+through approved Airflow connection/secret management, never in the DAG or Git.
+Do not use interactive browser authentication for unattended tasks.
+See the [provider connection documentation](https://airflow.apache.org/docs/apache-airflow-providers-snowflake/stable/connections/snowflake.html).
+
+Connections saved in the UI persist in Airflow's metadata database. An approved
+secrets backend can supply the same connection ID instead. No connection or
+credentials are created by this code. Alternatively, set
+`AIRFLOW_CONN_SNOWFLAKE_PHARMA` in the ignored root `.env` to an Airflow JSON
+connection; Compose passes only this optional Snowflake setting to the scheduler,
+where LocalExecutor tasks run. Environment connections do not appear in the UI
+connection list. For example, replace the authentication placeholders locally:
+
+```dotenv
+AIRFLOW_CONN_SNOWFLAKE_PHARMA='{"conn_type":"snowflake","login":"<service-user>","password":"<secret>","schema":"BRONZE","extra":{"account":"<approved-account>","database":"BOLIVIA_PHARMA_PRICE_ENGINE","warehouse":"COMPUTE_WH","role":"PHARMA_DEV_INGESTOR"}}'
+```
+
+Use the provider's key-pair fields in `extra` instead when applicable; never
+commit the rendered connection. Recreate the scheduler after changing this
+environment setting, only when no tasks are running or interruption is approved.
+For shared/production use, configure a stable Fernet key
+and your secret-management policy separately; the local Compose setup is not
+a production credential store.
+
+The load SQL files are packaged at `/opt/pharma/pipelines/ingestion/bronze/load`;
+the DAG uses that template search path. Rebuild the image and recreate Airflow
+services, including the DAG processor and scheduler, for provider/SQL changes.
+Simply updating the bind-mounted DAG against an old image is insufficient.
+
+The existing [load guide](../../ingestion/bronze/load/README.md) defines required
+stages, tables, integration permissions, and replay limits. Operators do not
+create or alter those objects. Each COPY loads all matching date folders for its
+retailer, not just the snapshot from the current DAG run, and skips known files
+according to Snowflake load history. It preserves blobs and raw duplicate rows.
+A no-new-files result can be successful; it is not a freshness assertion.
+No COPY results are pushed into XCom.
+
+To retry a failed load without scraping again, clear only its `load_<retailer>`
+task after resolving the error; leave the successful scraper task untouched.
+No automatic task retries are configured.
 
 Offline container checks (no pharmacy requests):
 
 ```bash
 docker compose --env-file .env -f pipelines/orchestration/airflow/compose.yaml cp pipelines/orchestration/airflow/tests/test_scraper_dag.py airflow-scheduler:/tmp/test_scraper_dag.py
 docker compose --env-file .env -f pipelines/orchestration/airflow/compose.yaml exec -T airflow-scheduler python /tmp/test_scraper_dag.py
+```
+
+Offline SQL-operator checks (mocked hooks, no Snowflake connection):
+
+```bash
+docker compose --env-file .env -f pipelines/orchestration/airflow/compose.yaml run --rm --no-deps -v "$PWD/pipelines/orchestration/airflow/tests:/tmp/dag-tests:ro" --entrypoint python airflow-scheduler -m unittest discover -s /tmp/dag-tests -p 'test_snowflake_loading.py' -v
 ```

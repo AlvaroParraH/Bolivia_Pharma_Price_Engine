@@ -309,7 +309,8 @@ category-readiness failure. The later full collection completed successfully.
 ## Snowflake loading
 
 The [load guide](load/README.md) documents the reused storage integration,
-retailer stages, typed Bronze tables, and SQL COPY statements. Loading is not
-wired into Airflow or executed by this change. Review the target, live object
+retailer stages, typed Bronze tables, and SQL COPY statements. Airflow runs the
+corresponding load after each successful scraper/upload when its connection is
+configured. Review the target, live object
 definitions, privileges, and stage paths before applying SQL. Raw data does not
 belong in this source-code directory.

@@ -97,7 +97,9 @@ do not interrupt active collections without approval.
 
 Follow the [Snowflake load guide](../pipelines/ingestion/bronze/load/README.md)
 for stage paths, object prerequisites, permissions, COPY scripts, and replay
-limitations. Loading is not yet wired into Airflow. Confirm the exact approved
+limitations. Configure Airflow's `snowflake_pharma` connection before triggering
+the scraper DAG, which loads each retailer after successful upload.
+Confirm the exact approved
 target and operation before executing warehouse SQL.
 
 ## Development and deployment boundaries

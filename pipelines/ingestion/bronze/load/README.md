@@ -1,6 +1,7 @@
 # Azure to Snowflake Bronze loads
 
-These are local SQL files, not a deployed or automatically scheduled loader.
+These SQL files are executed by Airflow after successful retailer scraper/uploads
+when the manual collection DAG is triggered and its Snowflake connection is configured.
 They use the retailer table, stage, integration, and shared Parquet file-format
 contracts. The Azure uploader lives in `../extract/`.
 
@@ -38,8 +39,10 @@ contracts. The Azure uploader lives in `../extract/`.
    existing grants; these files grant nothing.
 
 After those checks, execute the corresponding load SQL through the approved
-Snowflake client with the approved role and warehouse. This change intentionally
-does not add an executor, Snowflake dependency, or Airflow loading task.
+Snowflake client with the approved role and warehouse, or configure the
+`snowflake_pharma` connection for the [Airflow loading tasks](../../../orchestration/airflow/README.md#configure-snowflake-loading).
+Operators do not create the prerequisites or validate their live deployment at DAG
+parse time. Deployment and live execution require separate approval.
 
 ## Load and replay behavior
 
