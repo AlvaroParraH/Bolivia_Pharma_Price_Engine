@@ -4,8 +4,24 @@
 `PHARMA_AIRFLOW_DEV` identity, currently configured as `PERSON` for a manual
 Snowsight password/MFA login test with the development ingestor role.
 It contains no password, key, or authentication configuration.
-The temporary test password is stored only in the ignored root `.env` under
-`SNOWFLAKE_AIRFLOW_TEST_PASSWORD`; a password change is required on first login.
+The ignored root `.env` stores this identity separately as
+`AIRFLOW_SNOWFLAKE_USER=PHARMA_AIRFLOW_DEV` and `AIRFLOW_SNOWFLAKE_PASSWORD`,
+with the following connection settings in the same section:
+
+| Variable | Development value |
+|---|---|
+| `AIRFLOW_SNOWFLAKE_ACCOUNT` | `VLGIGMD-XC28657` |
+| `AIRFLOW_SNOWFLAKE_DATABASE` | `BOLIVIA_PHARMA_PRICE_ENGINE` |
+| `AIRFLOW_SNOWFLAKE_SCHEMA` | `BRONZE` |
+| `AIRFLOW_SNOWFLAKE_WAREHOUSE` | `COMPUTE_WH` |
+| `AIRFLOW_SNOWFLAKE_ROLE` | `PHARMA_DEV_INGESTOR` |
+| `AIRFLOW_SNOWFLAKE_AUTHENTICATOR` | `snowflake` |
+
+The original `SNOWFLAKE_*` settings remain unchanged. The password is the
+temporary test password; a password change is required on first login.
+Update the local password setting after changing it in Snowflake. These
+Airflow-specific variables are not automatically consumed by Compose or
+Airflow's saved connection.
 MFA enrollment or challenges remain subject to Snowflake and account policies.
 Do not disable or bypass those policies.
 
