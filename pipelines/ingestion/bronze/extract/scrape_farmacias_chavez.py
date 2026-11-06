@@ -15,7 +15,7 @@ from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 from uuid import uuid4
 
-from playwright.sync_api import BrowserContext, Page, sync_playwright
+from playwright.sync_api import BrowserContext, Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 from pipelines.ingestion.bronze.extract.category_retries import collect_with_retries
 from pipelines.ingestion.bronze.extract.snapshot import SnapshotWriter
@@ -185,6 +185,23 @@ def read_page(page: Page) -> tuple[int, list[dict[str, str | None]], int, int]:
     return total, cards, current, last
 
 
+def wait_for_page_change(
+    page: Page, url: str, number: int, previous: tuple[str | None, ...],
+) -> None:
+    page.wait_for_url(url, wait_until="domcontentloaded")
+    page.wait_for_function(
+        """expected => {
+            const pager = document.querySelector('.ant-pagination-simple-pager');
+            const current = Number(pager?.getAttribute('title')?.split('/')[0]);
+            const cards = [...document.querySelectorAll('a.containerCard')];
+            const ids = cards.map(n => n.getAttribute('href'));
+            return current === expected.number && ids.length
+                && cards.every(n => n.querySelector('.base__price'))
+                && JSON.stringify(ids) !== JSON.stringify(expected.previous);
+        }""", arg={"number": number, "previous": list(previous)},
+    )
+
+
 def collect_category(
     page: Page, name: str, policy: RobotFileParser, delay: float, run_id: str,
     write: Callable[[list[dict[str, str | None]]], None],
@@ -231,15 +248,15 @@ def collect_category(
         if not policy.can_fetch(USER_AGENT, next_url):
             raise ValueError(f"robots.txt disallows {next_url}")
         time.sleep(delay)
-        next_button.click()
-        page.wait_for_url(next_url)
-        page.wait_for_function(
-            """old => {
-                const cards = [...document.querySelectorAll('a.containerCard')];
-                const ids = cards.map(n=>n.getAttribute('href'));
-                return ids.length && JSON.stringify(ids) !== JSON.stringify(old);
-            }""", arg=list(fingerprint),
-        )
+        try:
+            next_button.click()
+            wait_for_page_change(page, next_url, current + 1, fingerprint)
+        except PlaywrightTimeoutError:
+            warning = f"Pagination timed out at page {current + 1}; reloading that page once"
+            warnings.append(warning)
+            LOGGER.warning("%s: %s", name, warning)
+            navigate(page, next_url, policy, delay)
+            wait_for_page_change(page, next_url, current + 1, fingerprint)
         previous_fingerprint = fingerprint
         page_number += 1
     if len(seen) != totals[-1]:

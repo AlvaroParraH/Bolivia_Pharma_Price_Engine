@@ -195,10 +195,13 @@ The site advises selecting a location for the nearest store catalog, so this
 is not a branch-specific price/availability guarantee. Its terms state prices
 are in national currency, include tax, and may change without notice.
 
-Pagination uses the public next button, waits for both the URL and product
-cards to change, checks page numbers and terminal button state, and records
-changing totals/overlaps as warnings. Category timeouts use the retry policy
-above. Full repeated pages, required-field
+Pagination uses the public next button and waits for the target URL's DOM,
+matching page number, and changed product cards with prices, without waiting
+for unrelated full-page load events. A pagination timeout triggers one paced
+reload of that same page, logged and recorded as a category warning. If it
+still times out, the existing category retry policy applies. The scraper checks
+terminal button state and records changing totals/overlaps as warnings.
+Full repeated pages, required-field
 failures, or invalid navigation stop the run and mark partial output failed.
 Three-second minimum pauses apply between pages/categories; images, media,
 and fonts are blocked. No accounts, carts, purchases, login bypass, private

@@ -20,3 +20,6 @@ airflow = [
     "botocore>=1.43.66,<1.43.76",
     "opentelemetry-sdk~=1.44.0",
 ]
+dbt = [
+    "dbt-snowflake==1.12.5",
+]

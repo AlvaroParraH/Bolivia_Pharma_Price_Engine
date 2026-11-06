@@ -119,6 +119,82 @@ class PolicyTests(unittest.TestCase):
 
 
 class LocalBrowserTests(unittest.TestCase):
+    def test_pagination_does_not_wait_for_unrelated_load_events(self):
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            pending = []
+            try:
+                page = browser.new_page()
+                page.set_default_timeout(500)
+                page.set_default_navigation_timeout(500)
+
+                def respond(route):
+                    if route.request.url.endswith("/pending"):
+                        pending.append(route)
+                        return
+                    route.fulfill(content_type="text/html", body="""
+                        <li class="ant-pagination-simple-pager" title="2/2"></li>
+                        <a class="containerCard" href="/p/new-456"><span class="base__price">Bs 1</span></a>
+                        <iframe src="/pending"></iframe>
+                    """)
+
+                page.route("**/*", respond)
+                url = chavez.BASE_URL + "/ca/test/1?currentPage=2"
+                page.goto(url, wait_until="domcontentloaded")
+                with self.assertRaises(PlaywrightTimeoutError):
+                    page.wait_for_load_state("load", timeout=100)
+                chavez.wait_for_page_change(page, url, 2, ("/p/old-123",))
+            finally:
+                for route in pending:
+                    route.abort()
+                browser.close()
+
+    def test_pagination_waits_for_matching_pager_and_changed_products(self):
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.route("**/*", lambda route: route.fulfill(
+                    content_type="text/html", body="""
+                    <li class="ant-pagination-simple-pager" title="1/2"></li>
+                    <a class="containerCard" href="/p/old-123"><span class="base__price">Bs 1</span></a>
+                    <script>
+                    setTimeout(() => {
+                      document.querySelector('a').setAttribute('href', '/p/new-456');
+                    }, 50);
+                    setTimeout(() => {
+                      document.querySelector('li').setAttribute('title', '2/2');
+                    }, 150);
+                    </script>
+                    """,
+                ))
+                url = chavez.BASE_URL + "/ca/test/1?currentPage=2"
+                page.goto(url)
+                chavez.wait_for_page_change(page, url, 2, ("/p/old-123",))
+                self.assertEqual(page.locator("li").get_attribute("title"), "2/2")
+                self.assertEqual(page.locator("a").get_attribute("href"), "/p/new-456")
+            finally:
+                browser.close()
+
+    def test_pagination_does_not_accept_unchanged_products(self):
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.set_default_timeout(100)
+                page.route("**/*", lambda route: route.fulfill(
+                    content_type="text/html", body="""
+                    <li class="ant-pagination-simple-pager" title="2/2"></li>
+                    <a class="containerCard" href="/p/old-123"><span class="base__price">Bs 1</span></a>
+                    """,
+                ))
+                url = chavez.BASE_URL + "/ca/test/1?currentPage=2"
+                page.goto(url)
+                with self.assertRaises(PlaywrightTimeoutError):
+                    chavez.wait_for_page_change(page, url, 2, ("/p/old-123",))
+            finally:
+                browser.close()
+
     def test_category_url_is_read_after_client_navigation_finishes(self):
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
@@ -186,7 +262,43 @@ class TraversalTests(unittest.TestCase):
         self.assertEqual(result["pages"], 2)
         self.assertEqual(len(rows), 2)
         self.assertEqual(result["products"], 2)
-        page.wait_for_url.assert_called_once_with(chavez.BASE_URL + "/ca/test/1?currentPage=2")
+        page.wait_for_url.assert_called_once_with(
+            chavez.BASE_URL + "/ca/test/1?currentPage=2", wait_until="domcontentloaded",
+        )
+
+    def test_stalled_page_reloads_once_without_rewriting_previous_page(self):
+        with patch.object(chavez, "wait_for_page_change", side_effect=[
+            PlaywrightTimeoutError("Products stalled"), None,
+        ]) as wait, patch.object(chavez, "navigate") as navigate:
+            result, rows, page = self.collect([
+                (2, [card()], 1, 2),
+                (2, [card() | {"href": "/p/other-456"}], 2, 2),
+            ])
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(result["pages"], 2)
+        self.assertIn("reloading that page once", result["warnings"][0])
+        self.assertEqual(wait.call_count, 2)
+        navigate.assert_called_once()
+        self.assertEqual(navigate.call_args.args[1], chavez.BASE_URL + "/ca/test/1?currentPage=2")
+        page.locator.return_value.click.assert_called_once()
+
+    def test_page_recovery_failure_propagates(self):
+        for error in (PlaywrightTimeoutError("Reload stalled"), RuntimeError("HTTP 429")):
+            with self.subTest(error=type(error).__name__), patch.object(
+                chavez, "wait_for_page_change", side_effect=PlaywrightTimeoutError("Products stalled"),
+            ), patch.object(chavez, "navigate", side_effect=error) as navigate:
+                with self.assertRaisesRegex(type(error), str(error)):
+                    self.collect([(2, [card()], 1, 2)])
+                navigate.assert_called_once()
+
+    def test_page_recovery_is_bounded_when_products_stay_stalled(self):
+        with patch.object(
+            chavez, "wait_for_page_change", side_effect=PlaywrightTimeoutError("Products stalled"),
+        ) as wait, patch.object(chavez, "navigate") as navigate:
+            with self.assertRaisesRegex(PlaywrightTimeoutError, "Products stalled"):
+                self.collect([(2, [card()], 1, 2)])
+        self.assertEqual(wait.call_count, 2)
+        navigate.assert_called_once()
 
     def test_repeated_full_page_fails(self):
         with self.assertRaisesRegex(ValueError, "Repeated full page"):
