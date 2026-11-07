@@ -34,3 +34,19 @@ models. Installation and version checks do not connect to Snowflake.
 - `tests/` - dbt tests, separate from the root Python test directory.
 - `macros/` - reusable SQL macros when needed.
 - `snapshots/` - approved history capture when needed.
+
+The three `models/silver/staging/stg_*__prices.sql` models select the Bronze
+observations without deduplicating products, so repeated product observations
+remain available for later Silver analysis. They use `LOADED_AT` (the
+Snowflake ingestion timestamp) as the incremental boundary: the first run
+selects all history, and later runs reprocess from one calendar day before the
+latest loaded date already in each target. `SOURCE_FILE` plus
+`SOURCE_ROW_NUMBER` is the merge key, making reruns idempotent for a landed
+source row while retaining separate source rows for the same product.
+
+The one-day lookback only captures late-arriving rows within that window; older
+backfills require a reviewed full refresh or another explicit backfill
+approach. Correct incremental merges depend on the source-file and row-number
+combination being unique for each retailer. Schema changes fail by default and
+require an explicit review. These models have not been run against Snowflake;
+configure and verify the intended profile and target before executing dbt.

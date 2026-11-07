@@ -1,8 +1,61 @@
 version: 2
 
+sources:
+  - name: bronze
+    description: "Raw product-price observations ingested from pharmacy scrapers."
+    database: BOLIVIA_PHARMA_PRICE_ENGINE
+    schema: BRONZE
+    tables:
+      - name: scraped_farmacorp_prices
+        description: "Farmacorp product, category, page, and market-context observations."
+      - name: scraped_farmacias_chavez_prices
+        description: "Farmacias Chavez product, category, page, and market-context observations."
+      - name: scraped_hipermaxi_prices
+        description: "Hipermaxi product, category, branch, batch, and market-context observations."
+
 models:
-  - name: scaffold_example
-    description: "Zero-row starter model; replace before using in a real build."
+  - name: stg_farmacorp__prices
+    description: >
+      One row per Farmacorp Bronze source-file row. Product-level repeated
+      observations are intentionally retained for downstream Silver review.
     columns:
-      - name: scaffold_placeholder
-        description: "Always NULL in this starter model."
+      - name: source_file
+        description: "Bronze file provenance; paired with source_row_number as the merge key."
+        data_tests:
+          - not_null
+      - name: source_row_number
+        description: "Row number within the Bronze source file; paired with source_file as the merge key."
+        data_tests:
+          - not_null
+      - name: loaded_at
+        description: "Timestamp when the observation was introduced to Snowflake."
+  - name: stg_farmacias_chavez__prices
+    description: >
+      One row per Farmacias Chavez Bronze source-file row. Product-level
+      repeated observations are intentionally retained for downstream Silver review.
+    columns:
+      - name: source_file
+        description: "Bronze file provenance; paired with source_row_number as the merge key."
+        data_tests:
+          - not_null
+      - name: source_row_number
+        description: "Row number within the Bronze source file; paired with source_file as the merge key."
+        data_tests:
+          - not_null
+      - name: loaded_at
+        description: "Timestamp when the observation was introduced to Snowflake."
+  - name: stg_hipermaxi__prices
+    description: >
+      One row per Hipermaxi Bronze source-file row. Product-level repeated
+      observations are intentionally retained for downstream Silver review.
+    columns:
+      - name: source_file
+        description: "Bronze file provenance; paired with source_row_number as the merge key."
+        data_tests:
+          - not_null
+      - name: source_row_number
+        description: "Row number within the Bronze source file; paired with source_file as the merge key."
+        data_tests:
+          - not_null
+      - name: loaded_at
+        description: "Timestamp when the observation was introduced to Snowflake."
