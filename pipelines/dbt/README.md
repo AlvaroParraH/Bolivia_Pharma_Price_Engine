@@ -22,6 +22,12 @@ models. Installation and version checks do not connect to Snowflake.
 
 ## Model areas
 
+- `seeds/` - reviewed static reference CSVs loaded into the configured target
+  schema. Set the profile target schema to
+  `BOLIVIA_PHARMA_PRICE_ENGINE.SILVER` before running
+  `dbt seed --select product_categories` to create
+  `PRODUCT_CATEGORIES`. Use `--full-refresh` only after inspecting the existing
+  seed table; it rebuilds the table and can replace its contents.
 - `models/silver/staging/`
 - `models/silver/intermediate/`
 - `models/gold/marts/`

@@ -4,6 +4,7 @@ config-version: 2
 profile: bolivia_pharma_price_engine
 
 model-paths: ["models"]
+seed-paths: ["seeds"]
 test-paths: ["tests"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
@@ -18,3 +19,14 @@ models:
     gold:
       marts:
         +materialized: table
+
+seeds:
+  bolivia_pharma_price_engine:
+    +quote_columns: false
+    product_categories:
+      +column_types:
+        category_id: number(38, 0)
+        category_group: varchar
+        category_name: varchar
+        atc_scope: varchar
+        examples: varchar

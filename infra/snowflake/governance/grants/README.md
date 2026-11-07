@@ -43,11 +43,12 @@ Nothing has been executed in Snowflake.
   No `ALL` or future grants are included.
 - Ingestor `SELECT` supports load validation and replay checks; it has no
   `UPDATE`, `DELETE`, `TRUNCATE`, or object-creation privileges in these scripts.
-- dbt owns models it creates. Creation privileges do not let it replace or
-  read other existing Silver/Gold objects owned by another role. Apply the
-  [product categories migration](../../migrations/silver/tables/product_categories.sql)
-  before the dbt grant script: it explicitly grants read-only access to that
-  reference table without transferring ownership or allowing dbt to modify it.
+- dbt owns models and seeds it creates. Creation privileges do not let it
+  replace or read other existing Silver/Gold objects owned by another role. The
+  [product categories seed](../../../../pipelines/dbt/seeds/product_categories.csv)
+  creates the reference table in the dbt target schema; apply this grant after
+  it only when another authorized role owns the table. The grant is read-only
+  and does not transfer ownership or let dbt modify a table it does not own.
   Review any required
   model ownership transfer or dependency read grants separately. Configure dbt
   to target these exact schemas; schema creation is not granted to its role.

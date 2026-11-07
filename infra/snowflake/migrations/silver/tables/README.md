@@ -3,14 +3,18 @@
 Place reviewed SQL changes for tables in the Silver schema here. No migration
 runner or execution order is configured yet.
 
-[product_categories.sql](product_categories.sql) creates
-`BOLIVIA_PHARMA_PRICE_ENGINE.SILVER.PRODUCT_CATEGORIES` and inserts the supplied
-38-category reference. Confirm the database, Silver schema, ownership, and
-authorized role before execution. No schema creation, grants, product assignments,
-or live deployment are included.
-After creating and populating the table, apply its explicit `SELECT` grant in
-[pharma_dev_dbt.sql](../../../governance/grants/pharma_dev_dbt.sql) so dbt can
-read this reference even when a deployment role owns it.
+The category reference is maintained as the dbt
+[product_categories seed](../../../../../pipelines/dbt/seeds/product_categories.csv).
+Run `dbt seed --select product_categories` with the dbt profile targeting
+`BOLIVIA_PHARMA_PRICE_ENGINE.SILVER` to create/populate the
+`PRODUCT_CATEGORIES` table. dbt creates the table if it does not exist;
+`dbt seed --full-refresh --select product_categories` rebuilds an existing seed
+table and can replace its contents, so inspect the target and current data
+before using full refresh. No seed has been executed and no table has been
+deployed by this repository change. Apply its
+explicit `SELECT` grant in
+[pharma_dev_dbt.sql](../../../governance/grants/pharma_dev_dbt.sql) if another
+authorized role creates and owns the table.
 
 `ATC_SCOPE` preserves the supplied descriptive codes/ranges; it is not a verified
 product ATC code or an automatic classification rule. Scopes overlap, and
@@ -19,9 +23,6 @@ The supplied examples are unchanged, including oral rehydration salts under
 IV fluids, which needs review before using it as a classification rule.
 No additional unclassified category is inserted.
 
-The primary key documents the intended unique category ID; standard Snowflake
-tables do not enforce primary-key uniqueness. Validate IDs when modifying this
-reference. Plain `CREATE TABLE` fails if the table exists; do not rerun the insert
-against an already populated table. Statements commit separately: if insertion
-fails after creation, inspect the table before retrying. This migration never
-replaces an existing table.
+The seed's `category_id` is the intended unique identifier. Standard Snowflake
+tables do not enforce primary-key uniqueness; validate IDs when modifying the
+reference.
