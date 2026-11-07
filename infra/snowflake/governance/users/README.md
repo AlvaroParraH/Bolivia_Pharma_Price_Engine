@@ -32,6 +32,12 @@ MFA requirements can prevent unattended login. For automation, use a `SERVICE` i
 an approved supported method, such as key-pair authentication or OAuth;
 Snowflake `SERVICE` users cannot authenticate with passwords.
 
+[pharma_dbt_dev.sql](pharma_dbt_dev.sql) defines `PHARMA_DBT_DEV` as a
+`PERSON` user for manual dbt development sessions. It also sets
+`MUST_CHANGE_PASSWORD = TRUE`, with default role `PHARMA_DEV_DBT`,
+warehouse `COMPUTE_WH`, and namespace `BOLIVIA_PHARMA_PRICE_ENGINE.SILVER`.
+No password, key, or authentication secret is stored in this repository.
+
 ## Provisioning order
 
 1. Confirm the development account, authorized administrative role, and target
@@ -53,6 +59,11 @@ Snowflake `SERVICE` users cannot authenticate with passwords.
    any required MFA enrollment. Verify noninteractive login separately before
    triggering Airflow loads.
    Setting `DEFAULT_ROLE` alone does not grant role membership.
+
+Repeat steps 3 and 5 for [pharma_dbt_dev.sql](pharma_dbt_dev.sql) and
+[../grants/pharma_dbt_dev.sql](../grants/pharma_dbt_dev.sql) when provisioning
+dbt access. For dbt, use `PHARMA_DEV_DBT` and verify model permissions after
+applying [pharma_dev_dbt.sql](../grants/pharma_dev_dbt.sql).
 
 Verify the assignments using metadata statements:
 

@@ -16,9 +16,10 @@ Nothing has been executed in Snowflake.
 | Script | Access |
 |---|---|
 | [pharma_airflow_dev.sql](pharma_airflow_dev.sql) | Assigns the ingestion role to the development user and makes it inherited by SYSADMIN |
+| [pharma_dbt_dev.sql](pharma_dbt_dev.sql) | Assigns the dbt role to the development dbt user and makes it inherited by SYSADMIN |
 | [pharma_dev_deployer.sql](pharma_dev_deployer.sql) | Database/schema usage, schema creation, Bronze table/stage creation, Silver/Gold table/view creation, and Azure integration usage |
 | [pharma_dev_ingestor.sql](pharma_dev_ingestor.sql) | Warehouse and Bronze parent usage; usage on the three retailer stages; insert/select on the three scraping tables |
-| [pharma_dev_dbt.sql](pharma_dev_dbt.sql) | Warehouse and parent usage; select on the three Bronze tables; Silver/Gold table/view creation |
+| [pharma_dev_dbt.sql](pharma_dev_dbt.sql) | Warehouse and parent usage; select on the three Bronze tables and Silver PRODUCT_CATEGORIES; Silver/Gold table/view creation |
 | [pharma_dev_reader.sql](pharma_dev_reader.sql) | Warehouse, database, and Gold schema usage only; no data access yet |
 
 ### Prerequisites and pending grants
@@ -43,9 +44,15 @@ Nothing has been executed in Snowflake.
 - Ingestor `SELECT` supports load validation and replay checks; it has no
   `UPDATE`, `DELETE`, `TRUNCATE`, or object-creation privileges in these scripts.
 - dbt owns models it creates. Creation privileges do not let it replace or
-  read existing Silver/Gold objects owned by another role. Review any required
+  read other existing Silver/Gold objects owned by another role. Apply the
+  [product categories migration](../../migrations/silver/tables/product_categories.sql)
+  before the dbt grant script: it explicitly grants read-only access to that
+  reference table without transferring ownership or allowing dbt to modify it.
+  Review any required
   model ownership transfer or dependency read grants separately. Configure dbt
   to target these exact schemas; schema creation is not granted to its role.
+  Assign `PHARMA_DEV_DBT` to the approved dbt user separately; no dbt user or
+  authentication method is provisioned by this grant script.
 - The deployer has no account-level `CREATE INTEGRATION`, warehouse access,
   or blanket ownership grants. Integration provisioning requires a separately
   authorized administrator. Existing objects are not transferred to it here.

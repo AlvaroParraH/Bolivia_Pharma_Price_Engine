@@ -8,6 +8,9 @@ runner or execution order is configured yet.
 38-category reference. Confirm the database, Silver schema, ownership, and
 authorized role before execution. No schema creation, grants, product assignments,
 or live deployment are included.
+After creating and populating the table, apply its explicit `SELECT` grant in
+[pharma_dev_dbt.sql](../../../governance/grants/pharma_dev_dbt.sql) so dbt can
+read this reference even when a deployment role owns it.
 
 `ATC_SCOPE` preserves the supplied descriptive codes/ranges; it is not a verified
 product ATC code or an automatic classification rule. Scopes overlap, and
