@@ -27,3 +27,4 @@ pipelines/orchestration/airflow/logs/
 
 # OS/editor
 .DS_Store
+.vscode/settings.json

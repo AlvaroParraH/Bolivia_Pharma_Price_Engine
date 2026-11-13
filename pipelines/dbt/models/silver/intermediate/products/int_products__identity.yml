@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: int_products__identity
+    description: >
+      One row per identified retailer and retailer product ID, using the
+      latest observation. Observations missing either key component remain
+      as separate unresolved rows. This model does not match products across
+      retailers or assign pharma categories.
+    columns:
+      - name: retailer
+        description: "Retailer reported by the source, trimmed; part of the product key."
+      - name: retailer_product_id
+        description: "Trimmed Farmacorp product handle or retailer product ID; part of the product key."
+      - name: product_url
+        description: "Product URL from the selected observation; not a fallback identity."
+      - name: name
+        description: "Product name from the selected observation."
+      - name: brand
+        description: "Brand from the selected observation when provided by the retailer."
+      - name: observed_at
+        description: "Time of the selected source observation."
+      - name: source_file
+        description: "Source file for the selected observation."
+      - name: source_row_number
+        description: "Row number within the source file for the selected observation."
+      - name: loaded_at
+        description: "Time the selected observation was loaded into Snowflake."
+      - name: source_retailer
+        description: "Retailer staging model that supplied the observation."
+      - name: identity_status
+        description: "Identified when both key components are present; otherwise unresolved."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['identified', 'unresolved']

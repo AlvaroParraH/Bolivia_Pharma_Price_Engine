@@ -50,3 +50,20 @@ approach. Correct incremental merges depend on the source-file and row-number
 combination being unique for each retailer. Schema changes fail by default and
 require an explicit review. These models have not been run against Snowflake;
 configure and verify the intended profile and target before executing dbt.
+
+The Silver intermediate `int_products__identity` view combines the three
+staging models. Its product key is the pair `RETAILER` and
+`RETAILER_PRODUCT_ID`: the latter is Farmacorp's product handle or the product
+ID for Farmacias Chavez and Hipermaxi. Whitespace-only key components are
+treated as missing. Identified products use their latest observed row, with
+load time and source provenance breaking ties. Rows with missing key
+components remain visible as `unresolved` and are not matched by URL or name.
+The source category remains in staging; this model neither assigns canonical
+categories nor matches products across retailers. Brand is available only
+where the source supplies it.
+
+Retailer IDs and Farmacorp handles are candidate identities, not guaranteed
+permanent identifiers. Review changes and collisions over time before using
+them for durable classifications. The latest row can change when older source
+files are backfilled into staging or source attributes change. This view has
+not been run against Snowflake.
