@@ -1,8 +1,8 @@
 WITH observations AS (
 
     SELECT
-        RETAILER,
-        PRODUCT_HANDLE AS RETAILER_PRODUCT_ID,
+        NULLIF(TRIM(RETAILER), '') AS RETAILER,
+        NULLIF(TRIM(PRODUCT_HANDLE), '') AS RETAILER_PRODUCT_ID,
         PRODUCT_URL,
         NAME,
         BRAND,
@@ -16,8 +16,8 @@ WITH observations AS (
     UNION ALL
 
     SELECT
-        RETAILER,
-        PRODUCT_ID AS RETAILER_PRODUCT_ID,
+        NULLIF(TRIM(RETAILER), '') AS RETAILER,
+        NULLIF(TRIM(PRODUCT_ID), '') AS RETAILER_PRODUCT_ID,
         PRODUCT_URL,
         NAME,
         NULL AS BRAND,
@@ -31,8 +31,8 @@ WITH observations AS (
     UNION ALL
 
     SELECT
-        RETAILER,
-        PRODUCT_ID AS RETAILER_PRODUCT_ID,
+        NULLIF(TRIM(RETAILER), '') AS RETAILER,
+        NULLIF(TRIM(PRODUCT_ID), '') AS RETAILER_PRODUCT_ID,
         PRODUCT_URL,
         NAME,
         NULL AS BRAND,
@@ -42,23 +42,6 @@ WITH observations AS (
         LOADED_AT,
         'hipermaxi' AS SOURCE_RETAILER
     FROM {{ ref('stg_hipermaxi__prices') }}
-
-),
-
-normalized AS (
-
-    SELECT
-        NULLIF(TRIM(RETAILER), '') AS RETAILER,
-        NULLIF(TRIM(RETAILER_PRODUCT_ID), '') AS RETAILER_PRODUCT_ID,
-        PRODUCT_URL,
-        NAME,
-        BRAND,
-        OBSERVED_AT,
-        SOURCE_FILE,
-        SOURCE_ROW_NUMBER,
-        LOADED_AT,
-        SOURCE_RETAILER
-    FROM observations
 
 ),
 
@@ -76,7 +59,7 @@ identified AS (
         LOADED_AT,
         SOURCE_RETAILER,
         'identified' AS IDENTITY_STATUS
-    FROM normalized
+    FROM observations
     WHERE RETAILER IS NOT NULL AND RETAILER_PRODUCT_ID IS NOT NULL
     QUALIFY ROW_NUMBER() OVER (
         PARTITION BY RETAILER, RETAILER_PRODUCT_ID
@@ -100,7 +83,7 @@ unresolved AS (
         LOADED_AT,
         SOURCE_RETAILER,
         'unresolved' AS IDENTITY_STATUS
-    FROM normalized
+    FROM observations
     WHERE RETAILER IS NULL OR RETAILER_PRODUCT_ID IS NULL
 
 )

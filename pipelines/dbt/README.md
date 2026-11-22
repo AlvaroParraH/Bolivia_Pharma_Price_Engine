@@ -67,3 +67,35 @@ permanent identifiers. Review changes and collisions over time before using
 them for durable classifications. The latest row can change when older source
 files are backfilled into staging or source attributes change. This view has
 not been run against Snowflake.
+
+## Design decisions
+
+### Naming
+
+- Staging models are named `stg_<source>__<entity>`, for example
+  `stg_farmacorp__prices`. The double underscore separates the source from the
+  entity; single underscores stay inside each part (`farmacias_chavez`).
+- The intermediate model is `int_products__identity`: the entity is
+  `products` and the purpose is `identity`.
+- Layer prefixes (`stg_`, `int_`) match the directory they live in under
+  `models/silver/`.
+
+### Layers and grain
+
+- **Staging** keeps one row per Bronze source row, keyed by `SOURCE_FILE` and
+  `SOURCE_ROW_NUMBER`. It does not deduplicate, so repeated observations of the
+  same product stay available.
+- **Intermediate** resolves product identity: one row per identified
+  `RETAILER` and `RETAILER_PRODUCT_ID`, plus separate `unresolved` rows.
+  Deduplication happens here, not in staging.
+
+### Staging columns
+
+Staging selects only the columns downstream models use. `CATEGORY`,
+`CATEGORY_URL`, `PAGE_URL`, `CURRENT_PRICE_TEXT`, `REGULAR_PRICE_TEXT`, and
+`MARKET_CONTEXT` were removed from all three staging models. They remain in
+Bronze. Hipermaxi staging also keeps `CITY`, `BRANCH`, and `BATCH`, which are
+not in that removed set.
+
+Because `on_schema_change='fail'` is set, existing tables that still have the
+removed columns need a reviewed `dbt run --full-refresh` on those models.
