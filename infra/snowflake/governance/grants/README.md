@@ -19,7 +19,8 @@ Nothing has been executed in Snowflake.
 | [pharma_dbt_dev.sql](pharma_dbt_dev.sql) | Assigns the dbt role to the development dbt user and makes it inherited by SYSADMIN |
 | [pharma_dev_deployer.sql](pharma_dev_deployer.sql) | Database/schema usage, schema creation, Bronze table/stage creation, Silver/Gold table/view creation, and Azure integration usage |
 | [pharma_dev_ingestor.sql](pharma_dev_ingestor.sql) | Warehouse and Bronze parent usage; usage on the three retailer stages; insert/select on the three scraping tables |
-| [pharma_dev_dbt.sql](pharma_dev_dbt.sql) | Warehouse and parent usage; select on the three Bronze tables and Silver PRODUCT_CATEGORIES; Silver/Gold table/view creation |
+| [pharma_dev_dbt.sql](pharma_dev_dbt.sql) | Warehouse and parent usage; select on the three Bronze tables; Silver table/view creation. Gold grants are commented out until the GOLD schema exists |
+| [pharma_dev_dbt_verify.sql](pharma_dev_dbt_verify.sql) | Read-only `SHOW` statements used to verify the dbt role, its grants, and the Silver/Bronze objects |
 | [pharma_dev_reader.sql](pharma_dev_reader.sql) | Warehouse, database, and Gold schema usage only; no data access yet |
 
 ### Prerequisites and pending grants
